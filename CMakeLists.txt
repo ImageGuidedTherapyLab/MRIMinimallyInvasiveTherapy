@@ -1,5 +1,5 @@
 # This project is designed to be built outside the Insight source tree.
-PROJECT(Registration)
+PROJECT(RealTime)
 
 # Echo Compiler Options 
 SET(CMAKE_VERBOSE_MAKEFILE ON)
@@ -30,3 +30,6 @@ TARGET_LINK_LIBRARIES(DicomSeriesCopyHeader ITKCommon ITKIO)
 
 ADD_EXECUTABLE(SubsampleNoFilter SubsampleNoFilter.cxx )
 TARGET_LINK_LIBRARIES(SubsampleNoFilter  ITKBasicFilters ITKIO)
+
+ADD_EXECUTABLE(DicomReadImagRealWriteTemp DicomReadImagRealWriteTemp.cxx )
+TARGET_LINK_LIBRARIES(DicomReadImagRealWriteTemp ITKIO)

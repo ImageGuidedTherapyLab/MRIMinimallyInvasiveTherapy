@@ -96,18 +96,19 @@
 const unsigned int          Dimension = 3;
 const double                       pi = 3.1415926535897931;
 // useful typedefs
-typedef signed   short                                         InputPixelType;
+typedef double                                                 InputPixelType;
 typedef unsigned char                                         OutputPixelType;
 typedef itk::Image<  InputPixelType, Dimension >               InputImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
 typedef itk::ImageSeriesReader<      InputImageType >              ReaderType;
 typedef itk::ImageFileWriter<       OutputImageType >              WriterType;
 typedef itk::GDCMImageIO                                          ImageIOType;
-typedef itk::ImageSliceConstIteratorWithIndex< InputImageType >  InputIteratorType;
-typedef itk::ImageSliceIteratorWithIndex< InputImageType >   BaseIteratorType;
+typedef itk::ImageSliceConstIteratorWithIndex< InputImageType >  
+                                                            InputIteratorType;
+typedef itk::ImageSliceIteratorWithIndex< InputImageType > BufferIteratorType;
 typedef itk::ImageSliceIteratorWithIndex<OutputImageType > OutputIteratorType;
 
-
+// subroutine to generate dicom filenames
 std::vector<std::string>   RealTimeGenerateFileNames(const char * ExamPath,
                                                      int DirId, 
                                                      int istep, int nslice)
@@ -124,7 +125,7 @@ std::vector<std::string>   RealTimeGenerateFileNames(const char * ExamPath,
     }
    return filenames;
 }
-
+// subroutine to read the dicom data in real-time
 InputImageType::ConstPointer GetImageData(ReaderType::Pointer  reader ,
                                      std::vector<std::string> &filenames )
 {
@@ -154,7 +155,54 @@ InputImageType::ConstPointer GetImageData(ReaderType::Pointer  reader ,
     }
   return Image; 
 }
-
+// subroutine to write the image to disk
+void WriteImage(InputImageType::Pointer Image, BufferIteratorType imageIt,
+                                             std::ostringstream &filename,
+                                          InputImageType::SpacingType &sp,
+                                          InputImageType::PointType &orgn)
+{
+  // create output image buffer
+  OutputImageType::Pointer outputImage = OutputImageType::New();
+  outputImage->SetRegions( Image->GetRequestedRegion());
+  outputImage->Allocate();
+  outputImage->SetSpacing( sp );  
+  outputImage->SetOrigin( orgn);
+  OutputIteratorType  outputIt( outputImage, outputImage->GetRequestedRegion());
+  outputIt.SetFirstDirection(  0 );   outputIt.SetSecondDirection( 1 );
+  // copy image buffer into an output buffer of a possibly different data type
+   imageIt.GoToBegin();
+  outputIt.GoToBegin();
+  while( !imageIt.IsAtEnd() )
+    {
+    while ( !imageIt.IsAtEndOfSlice() )
+      {
+      while ( !imageIt.IsAtEndOfLine() )
+        {
+        outputIt.Set( (OutputPixelType) imageIt.Get() );
+        ++imageIt;
+        ++outputIt;
+        }
+        imageIt.NextLine();
+        outputIt.NextLine();
+      }
+      imageIt.NextSlice();
+      outputIt.NextSlice();
+    }
+  WriterType::Pointer writer = WriterType::New();
+  writer->SetFileName( filename.str() );
+  std::cout << "writing " << filename.str() << "\n"; 
+  writer->SetInput( outputImage );
+  try
+    {
+    writer->Update();
+    }
+  catch (itk::ExceptionObject &ex)
+    {
+    std::cout << ex; abort();
+    }
+  return;
+}
+// main driver routine
 int main( int argc, char* argv[] )
 {
   if( argc < 7 )
@@ -211,10 +259,14 @@ int main( int argc, char* argv[] )
   //  
   //  Software Guide : EndLatex 
 
-  // get base image first
+  // get base image first and prepare temperature image
   ReaderType::Pointer       base_reader    = ReaderType::New();
   ImageIOType::Pointer      base_gdcmIO    = ImageIOType::New();
-  InputImageType::Pointer   BaseImage = InputImageType::New();
+  InputImageType::Pointer   baseImage = InputImageType::New();
+  InputImageType::Pointer   tempImage = InputImageType::New();
+  // dimensions for all images
+  InputImageType::SpacingType sp;
+  InputImageType::PointType orgn;
   {
     // generate list of file names and get image data
     std::vector<std::string> filenames =
@@ -223,7 +275,7 @@ int main( int argc, char* argv[] )
     base_reader->SetFileNames(  filenames );
     InputImageType::ConstPointer inputImage=GetImageData(base_reader,filenames);
 
-    // allocate base phase image
+    // allocate base phase image and output image buffer
     InputImageType::RegionType region;
     InputImageType::RegionType::SizeType size;
     InputImageType::RegionType::IndexType index;
@@ -233,242 +285,212 @@ int main( int argc, char* argv[] )
     size[2]  = nslice ; 
     region.SetSize( size );
     region.SetIndex( index );
-    BaseImage->SetRegions( region );
-    BaseImage->Allocate();
-    // create base phase image
-    InputIteratorType inputItReal(inputImage,inputImage->GetRequestedRegion());
-    InputIteratorType inputItImag(inputImage,inputImage->GetRequestedRegion());
-     BaseIteratorType baseIt(      BaseImage, BaseImage->GetRequestedRegion());
+    baseImage->SetRegions( region );
+    tempImage->SetRegions( region );
+    baseImage->Allocate();
+    tempImage->Allocate();
+
+    // scale image to meters
+    sp = 0.001 * inputImage->GetSpacing();
+    std::cout << "Spacing = ";
+    std::cout << sp[0] << ", " << sp[1] << ", " << sp[2] << std::endl;
+  
+    // scale image to meters
+    const InputImageType::PointType& orgn_mm = inputImage->GetOrigin();
+    orgn[0] = 0.001 * orgn_mm[0];
+    orgn[1] = 0.001 * orgn_mm[1];
+    orgn[2] = 0.001 * orgn_mm[2];
+    std::cout << "Origin = ";
+    std::cout << orgn[0] << ", " << orgn[1] << ", " << orgn[2] << std::endl;
+
+    // setup real, imaginary, base phase, and temperature map iterators
+    InputIteratorType    realIt(  inputImage, inputImage->GetRequestedRegion());
+    InputIteratorType    imagIt(  inputImage, inputImage->GetRequestedRegion());
+    BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
+    BufferIteratorType   tempIt(   tempImage,  tempImage->GetRequestedRegion());
    
-     inputItReal.SetFirstDirection(  0 );
-     inputItReal.SetSecondDirection( 1 );
-     inputItImag.SetFirstDirection(  0 );
-     inputItImag.SetSecondDirection( 1 );
-          baseIt.SetFirstDirection(  0 );
-          baseIt.SetSecondDirection( 1 );
+    realIt.SetFirstDirection(  0 );   realIt.SetSecondDirection( 1 );
+    imagIt.SetFirstDirection(  0 );   imagIt.SetSecondDirection( 1 );
+    baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
+    tempIt.SetFirstDirection(  0 );   tempIt.SetSecondDirection( 1 );
    
-     // Software Guide : EndCodeSnippet 
-     inputItReal.GoToBegin();
-     // imaginary image is after the real image
-     inputItImag.GoToBegin(); inputItImag.NextSlice(); // n+1
-     // set base and output image to the beginnning
-          baseIt.GoToBegin();
-     
-     while( !baseIt.IsAtEnd() )
-       {
-       while ( !baseIt.IsAtEndOfSlice() )
-         {
-         while ( !baseIt.IsAtEndOfLine() )
-           {
-           baseIt.Set( (signed short) std::atan2( inputItReal.Get() , inputItImag.Get() ) );
-           ++inputItReal;
-           ++inputItImag;
-           ++baseIt;
-           }
-         inputItReal.NextLine();
-         inputItImag.NextLine();
-              baseIt.NextLine();
-         }
-       // skip two on the input image
-       inputItReal.NextSlice(); inputItReal.NextSlice();
-       inputItImag.NextSlice(); inputItImag.NextSlice();
-       // skip one on the base and output image
-       baseIt.NextSlice();
-       }
-     // output base phase image as a place holder
-     typedef itk::ImageFileWriter<  InputImageType >      BaseWriterType;
-     BaseWriterType::Pointer writer = BaseWriterType::New();
-     std::ostringstream basephase_filename;
-     // hard code for now
-     basephase_filename << OutputDir <<"/tmap."<< 0 <<".mha" ;
-     writer->SetFileName( basephase_filename.str() );
-     std::cout << "writing " << basephase_filename.str() << "\n"; 
-     writer->SetInput( BaseImage );
-     try
-       {
-       writer->Update();
-       }
-     catch (itk::ExceptionObject &ex)
-       {
-       std::cout << ex;
-       return EXIT_FAILURE;
-       }
+    // Software Guide : EndCodeSnippet 
+    realIt.GoToBegin();
+    // imaginary image is after the real image
+    imagIt.GoToBegin(); imagIt.NextSlice(); // n+1
+    // set base and output image to the beginnning
+    baseIt.GoToBegin();
+    tempIt.GoToBegin();
+    
+    // create base phase image and initialize output buffer
+    while( !baseIt.IsAtEnd() )
+      {
+      while ( !baseIt.IsAtEndOfSlice() )
+        {
+        while ( !baseIt.IsAtEndOfLine() )
+          {
+          baseIt.Set(  std::atan2( realIt.Get() , imagIt.Get() ) );
+          tempIt.Set( 0.0 );
+          ++realIt;
+          ++imagIt;
+          ++baseIt;
+          ++tempIt;
+          }
+          realIt.NextLine();
+          imagIt.NextLine();
+          baseIt.NextLine();
+          tempIt.NextLine();
+        }
+      // skip two on the input image
+      realIt.NextSlice(); realIt.NextSlice();
+      imagIt.NextSlice(); imagIt.NextSlice();
+      // skip one on the base and output image
+        baseIt.NextSlice();
+        tempIt.NextSlice();
+      }
+    // output base phase image as a place holder
+    std::ostringstream basephase_filename;
+    // output file
+    basephase_filename << OutputDir <<"/tmap."<< 0 <<".mha" ;
+    WriteImage(baseImage,baseIt,basephase_filename,sp,orgn);
+
   }
   // loop over time instances
-  for( int iii = 1 ; iii < ntime ; iii++)
+  for( int iii = 1 ; iii <= ntime ; iii++)
    {
-     std::vector<std::string> filenames =
-                           RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice);
+    std::vector<std::string> filenames =
+                          RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice);
    
-     // Software Guide : BeginLatex
-     // We construct one instance of the series reader object. Set the DICOM
-     // image IO object to be use with it, and set the list of filenames to
-     // read.
-     // Software Guide : EndLatex
-     
-     // Software Guide : BeginCodeSnippet
-     ReaderType::Pointer  reader = ReaderType::New();
-     ImageIOType::Pointer gdcmIO = ImageIOType::New();
-     reader->SetImageIO( gdcmIO );
-     reader->SetFileNames( filenames );
-     // Software Guide : EndCodeSnippet
+    // Software Guide : BeginLatex
+    // We construct one instance of the series reader object. Set the DICOM
+    // image IO object to be use with it, and set the list of filenames to
+    // read.
+    // Software Guide : EndLatex
+    
+    // Software Guide : BeginCodeSnippet
+    ReaderType::Pointer  reader = ReaderType::New();
+    ImageIOType::Pointer gdcmIO = ImageIOType::New();
+    reader->SetImageIO( gdcmIO );
+    reader->SetFileNames( filenames );
+    // Software Guide : EndCodeSnippet
    
-     // Software Guide : BeginLatex
-     // 
-     // We can trigger the reading process by calling the \code{Update()} method
-     // on the series reader. It is wise to put this invocation inside a
-     // \code{try/catch} block since the process may eventually throw
-     // exceptions.
-     //
-     // Software Guide : EndLatex
+    // Software Guide : BeginLatex
+    // 
+    // We can trigger the reading process by calling the \code{Update()} method
+    // on the series reader. It is wise to put this invocation inside a
+    // \code{try/catch} block since the process may eventually throw
+    // exceptions.
+    //
+    // Software Guide : EndLatex
    
-     InputImageType::ConstPointer inputImage = GetImageData(reader,filenames);
+    InputImageType::ConstPointer inputImage = GetImageData(reader,filenames);
  
-     // scratch storage for header value
-     std::string value; 
-     // Get Echo Time 
-     std::string echotimekey = "0018|0081";
-     double echotime;
-     try
-     {  
-        gdcmIO->GetValueFromTag(echotimekey, value) ;
-        echotime=boost::lexical_cast<double>(value);
-     }
-     catch(const std::exception& e) //catch bad lexical cast
-     {
-        std::cout << "Error getting echo time " << " (" << echotimekey << ")\n";
-        std::cout << "value returned is "<<value << "\n";
-        std::cout << e.what() << std::endl;
-        std::cout << "using value from command line "<< argv[7] << "\n";
-        echotime = boost::lexical_cast<double>(argv[7]);
-     }
-     std::string imagfreqkey = "0018|0084";
-     double imagfreq;
-     try
-     {  
-        gdcmIO->GetValueFromTag(imagfreqkey, value) ;
-        // trailing space on string causing cast error
-        value.erase(value.find(' ')) ; 
-        imagfreq=boost::lexical_cast<double>(value);
-     }
-     catch(const std::exception& e) //catch bad lexical cast
-     {
-        std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
-        std::cout << "value returned is "<<value << "\n";
-        std::cout << e.what() << std::endl;
-        std::cout << "using value from command line "<< argv[8] << "\n";
-        imagfreq = boost::lexical_cast<double>(argv[8]);
-     }
-     // misc info
-     // echo data
-     std::string studyIdkey  = "0020|0010" ;
-     std::string seriesIdkey = "0020|0011" ;
-     gdcmIO->GetValueFromTag(studyIdkey  , value) ;
-     std::cout << "Study Id " << value  ;
-     gdcmIO->GetValueFromTag(seriesIdkey , value) ;
-     std::cout << " Series Number " << value   << "\n" ;
-     std::cout << "alpha " << alpha  << " (ppm/degC) "
-               << "echo time " << echotime << " (ms) "
-               << "imaging freq " << imagfreq << " (MHz) \n";
-     // Software Guide : EndCodeSnippet
+    // scratch storage for header value
+    std::string value; 
+    // Get Echo Time 
+    std::string echotimekey = "0018|0081";
+    double echotime;
+    try
+    {  
+       gdcmIO->GetValueFromTag(echotimekey, value) ;
+       echotime=boost::lexical_cast<double>(value);
+    }
+    catch(const std::exception& e) //catch bad lexical cast
+    {
+       std::cout << "Error getting echo time " << " (" << echotimekey << ")\n";
+       std::cout << "value returned is "<<value << "\n";
+       std::cout << e.what() << std::endl;
+       std::cout << "using value from command line "<< argv[7] << "\n";
+       echotime = boost::lexical_cast<double>(argv[7]);
+    }
+    std::string imagfreqkey = "0018|0084";
+    double imagfreq;
+    try
+    {  
+       gdcmIO->GetValueFromTag(imagfreqkey, value) ;
+       // trailing space on string causing cast error
+       value.erase(value.find(' ')) ; 
+       imagfreq=boost::lexical_cast<double>(value);
+    }
+    catch(const std::exception& e) //catch bad lexical cast
+    {
+       std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
+       std::cout << "value returned is "<<value << "\n";
+       std::cout << e.what() << std::endl;
+       std::cout << "using value from command line "<< argv[8] << "\n";
+       imagfreq = boost::lexical_cast<double>(argv[8]);
+    }
+    // misc info
+    // echo data
+    std::string studyIdkey  = "0020|0010" ;
+    std::string seriesIdkey = "0020|0011" ;
+    gdcmIO->GetValueFromTag(studyIdkey  , value) ;
+    std::cout << "Study Id " << value  ;
+    gdcmIO->GetValueFromTag(seriesIdkey , value) ;
+    std::cout << " Series Number " << value   << "\n" ;
+    std::cout << "alpha " << alpha  << " (ppm/degC) "
+              << "echo time " << echotime << " (ms) "
+              << "imaging freq " << imagfreq << " (MHz) \n";
+    // Software Guide : EndCodeSnippet
 
-     // Software Guide : BeginLatex
-     // At this point we would have the volumetric data loaded in memory and we
-     // can get access to it by invoking the \code{GetOutput()} method in the
-     // reader.
-     // Software Guide : EndLatex
-     // Software Guide : BeginCodeSnippet 
-     OutputImageType::RegionType region;
-     OutputImageType::RegionType::SizeType size;
-     OutputImageType::RegionType::IndexType index;
-     InputImageType::RegionType requestedRegion = inputImage->GetRequestedRegion();
-     index = requestedRegion.GetIndex();
-     size  = requestedRegion.GetSize();
-     size[2]  = nslice ; 
    
-     region.SetSize( size );
-     region.SetIndex( index );
+    // Software Guide : BeginLatex
+    // setup real, imaginary, base phase, and temperature map iterators
+    // The const slice iterator walks the 3D input image, and the non-const
+    // linear iterator walks the 2D output image. The iterators are initialized
+    // to walk the same linear path through a slice.  Remember that the
+    // \emph{second} direction of the slice iterator defines the direction that
+    // linear iteration walks within a slice
+    InputIteratorType    realIt(  inputImage, inputImage->GetRequestedRegion());
+    InputIteratorType    imagIt(  inputImage, inputImage->GetRequestedRegion());
+    BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
+    BufferIteratorType   tempIt(   tempImage,  tempImage->GetRequestedRegion());
    
-     OutputImageType::Pointer outputImage = OutputImageType::New();
-     
-     outputImage->SetRegions( region );
-     outputImage->Allocate();
+    realIt.SetFirstDirection(  0 );   realIt.SetSecondDirection( 1 );
+    imagIt.SetFirstDirection(  0 );   imagIt.SetSecondDirection( 1 );
+    baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
+    tempIt.SetFirstDirection(  0 );   tempIt.SetSecondDirection( 1 );
    
-     // Software Guide : BeginLatex
-     // Next we create the necessary iterators.  The const slice iterator walks
-     // the 3D input image, and the non-const linear iterator walks the 2D
-     // output image. The iterators are initialized to walk the same linear path
-     // through a slice.  Remember that the \emph{second} direction of the slice
-     // iterator defines the direction that linear iteration walks within a
-     // slice.
-     // Software Guide : EndLatex
-     
-     // Software Guide : BeginCodeSnippet
-     InputIteratorType  inputItReal(inputImage, inputImage->GetRequestedRegion() );
-     InputIteratorType  inputItImag(inputImage, inputImage->GetRequestedRegion() );
-     BaseIteratorType        baseIt(      BaseImage, BaseImage->GetRequestedRegion());
-     OutputIteratorType     outputIt(   outputImage, outputImage->GetRequestedRegion() );
+    // Software Guide : EndCodeSnippet 
+    realIt.GoToBegin();
+    // imaginary image is after the real image
+    imagIt.GoToBegin(); imagIt.NextSlice(); // n+1
+    // set base and output image to the beginnning
+    baseIt.GoToBegin();
+    tempIt.GoToBegin();
+    
+    while( !tempIt.IsAtEnd() )
+      {
+      while ( !tempIt.IsAtEndOfSlice() )
+        {
+        while ( !tempIt.IsAtEndOfLine() )
+          {
+           tempIt.Set( tempIt.Get() +  
+             (std::atan2( realIt.Get(),imagIt.Get() ) - baseIt.Get()) 
+                / (0.5 * pi * imagfreq * alpha * echotime * 1.e-3 ) 
+                      );
+          ++realIt;
+          ++imagIt;
+          ++baseIt;
+          ++tempIt;
+          }
+          realIt.NextLine();
+          imagIt.NextLine();
+          baseIt.NextLine();
+          tempIt.NextLine();
+        }
+      // skip two on the input image
+      realIt.NextSlice(); realIt.NextSlice();
+      imagIt.NextSlice(); imagIt.NextSlice();
+      // skip one on the base and output image
+      tempIt.NextSlice();
+      baseIt.NextSlice();
+      }
    
-     inputItReal.SetFirstDirection(  0 );
-     inputItReal.SetSecondDirection( 1 );
-     inputItImag.SetFirstDirection(  0 );
-     inputItImag.SetSecondDirection( 1 );
-        outputIt.SetFirstDirection(  0 );
-        outputIt.SetSecondDirection( 1 );
-   
-     // Software Guide : EndCodeSnippet 
-     inputItReal.GoToBegin();
-     // imaginary image is after the real image
-     inputItImag.GoToBegin(); inputItImag.NextSlice(); // n+1
-     // set base and output image to the beginnning
-          baseIt.GoToBegin();
-        outputIt.GoToBegin();
-     
-     while( !outputIt.IsAtEnd() )
-       {
-       while ( !outputIt.IsAtEndOfSlice() )
-         {
-         while ( !outputIt.IsAtEndOfLine() )
-           {
-           outputIt.Set( (unsigned char)
-            ((std::atan2( inputItReal.Get(),inputItImag.Get() ) - baseIt.Get()) 
-               / (0.5 * pi * imagfreq * alpha * echotime * 1.e-3 ) )
-                        );
-           ++inputItReal;
-           ++inputItImag;
-           ++outputIt;
-           ++baseIt;
-           }
-         inputItReal.NextLine();
-         inputItImag.NextLine();
-            outputIt.NextLine();
-              baseIt.NextLine();
-         }
-       // skip two on the input image
-       inputItReal.NextSlice(); inputItReal.NextSlice();
-       inputItImag.NextSlice(); inputItImag.NextSlice();
-       // skip one on the base and output image
-       outputIt.NextSlice();
-         baseIt.NextSlice();
-       }
-   
-     // output tmap
-     WriterType::Pointer writer = WriterType::New();
-     std::ostringstream tmap_filename;
-     // hard code for now
-     tmap_filename << OutputDir <<"/tmap."<< iii <<".mha" ;
-     writer->SetFileName( tmap_filename.str() );
-     std::cout << "writing " << tmap_filename.str() << "\n"; 
-     writer->SetInput( outputImage );
-     try
-       {
-       writer->Update();
-       }
-     catch (itk::ExceptionObject &ex)
-       {
-       std::cout << ex;
-       return EXIT_FAILURE;
-       }
+    // output tmap
+    std::ostringstream tmap_filename;
+    tmap_filename << OutputDir <<"/tmap."<< iii <<".mha" ;
+    WriteImage(tempImage , tempIt, tmap_filename,sp,orgn);
    } // end loop over time instances
      
   return EXIT_SUCCESS;
