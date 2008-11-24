@@ -97,7 +97,7 @@ const unsigned int          Dimension = 3;
 const double                       pi = 3.1415926535897931;
 // useful typedefs
 typedef double                                                 InputPixelType;
-typedef unsigned char                                         OutputPixelType;
+typedef double                                          OutputPixelType;
 typedef itk::Image<  InputPixelType, Dimension >               InputImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
 typedef itk::ImageSeriesReader<      InputImageType >              ReaderType;
@@ -178,7 +178,7 @@ void WriteImage(InputImageType::Pointer Image, BufferIteratorType imageIt,
       {
       while ( !imageIt.IsAtEndOfLine() )
         {
-        outputIt.Set( (OutputPixelType) imageIt.Get() );
+        outputIt.Set( (OutputPixelType)  imageIt.Get()  );
         ++imageIt;
         ++outputIt;
         }
@@ -205,10 +205,10 @@ void WriteImage(InputImageType::Pointer Image, BufferIteratorType imageIt,
 // main driver routine
 int main( int argc, char* argv[] )
 {
-  if( argc < 7 )
+  if( argc < 8 )
     {
     std::cerr << "Usage: " << argv[0] << 
-      " ExamPath DirId OutputDir NumberTimePoints NumberSlice Alpha (ppm/degC) [EchoTime (ms)] [ImagingFreqency (MHz)]" << std::endl;
+      " ExamPath DirId OutputDir NumberTimePoints NumberSlice Alpha (ppm/degC) Maxdiff (degC) [EchoTime (ms)] [ImagingFreqency (MHz)]" << std::endl;
     std::cerr << "EchoTime and ImagingFrequency Optional\n" 
               << " but may be input in case of any errors\n" ;
     return EXIT_FAILURE;
@@ -220,13 +220,14 @@ int main( int argc, char* argv[] )
   int DirId;    
   int ntime;    
   int nslice;   
-  double alpha; 
+  double alpha,maxdiff; 
   try
   {  
-     DirId  = boost::lexical_cast<int>(   argv[2]);
-     ntime  = boost::lexical_cast<int>(   argv[4]);
-     nslice = boost::lexical_cast<int>(   argv[5]);
-     alpha  = boost::lexical_cast<double>(argv[6]);
+     DirId   = boost::lexical_cast<int>(   argv[2]);
+     ntime   = boost::lexical_cast<int>(   argv[4]);
+     nslice  = boost::lexical_cast<int>(   argv[5]);
+     alpha   = boost::lexical_cast<double>(argv[6]);
+     maxdiff = boost::lexical_cast<double>(argv[7]);
   }
   catch(const std::exception& e) //catch bad lexical cast
   {
@@ -234,7 +235,8 @@ int main( int argc, char* argv[] )
                << "\nDirId  = " << argv[2]
                << "\nntime  = " << argv[4]
                << "\nnslice = " << argv[5]
-               << "\nalpha  = " << argv[6] << std::endl;
+               << "\nalpha  = " << argv[6]
+               << "\nmaxdiff= " << argv[7] << std::endl;
      std::cout << e.what() << std::endl;
      return EXIT_FAILURE;
   }
@@ -263,7 +265,8 @@ int main( int argc, char* argv[] )
   ReaderType::Pointer       base_reader    = ReaderType::New();
   ImageIOType::Pointer      base_gdcmIO    = ImageIOType::New();
   InputImageType::Pointer   baseImage = InputImageType::New();
-  InputImageType::Pointer   tempImage = InputImageType::New();
+  InputImageType::Pointer   net_Image = InputImageType::New();
+  InputImageType::Pointer   filtImage = InputImageType::New();
   // dimensions for all images
   InputImageType::SpacingType sp;
   InputImageType::PointType orgn;
@@ -286,9 +289,11 @@ int main( int argc, char* argv[] )
     region.SetSize( size );
     region.SetIndex( index );
     baseImage->SetRegions( region );
-    tempImage->SetRegions( region );
+    net_Image->SetRegions( region );
+    filtImage->SetRegions( region );
     baseImage->Allocate();
-    tempImage->Allocate();
+    net_Image->Allocate();
+    filtImage->Allocate();
 
     // scale image to meters
     sp = 0.001 * inputImage->GetSpacing();
@@ -307,12 +312,14 @@ int main( int argc, char* argv[] )
     InputIteratorType    realIt(  inputImage, inputImage->GetRequestedRegion());
     InputIteratorType    imagIt(  inputImage, inputImage->GetRequestedRegion());
     BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
-    BufferIteratorType   tempIt(   tempImage,  tempImage->GetRequestedRegion());
+    BufferIteratorType   net_It(   net_Image,  net_Image->GetRequestedRegion());
+    BufferIteratorType   filtIt(   filtImage,  filtImage->GetRequestedRegion());
    
     realIt.SetFirstDirection(  0 );   realIt.SetSecondDirection( 1 );
     imagIt.SetFirstDirection(  0 );   imagIt.SetSecondDirection( 1 );
     baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
-    tempIt.SetFirstDirection(  0 );   tempIt.SetSecondDirection( 1 );
+    net_It.SetFirstDirection(  0 );   net_It.SetSecondDirection( 1 );
+    filtIt.SetFirstDirection(  0 );   filtIt.SetSecondDirection( 1 );
    
     // Software Guide : EndCodeSnippet 
     realIt.GoToBegin();
@@ -320,7 +327,8 @@ int main( int argc, char* argv[] )
     imagIt.GoToBegin(); imagIt.NextSlice(); // n+1
     // set base and output image to the beginnning
     baseIt.GoToBegin();
-    tempIt.GoToBegin();
+    net_It.GoToBegin();
+    filtIt.GoToBegin();
     
     // create base phase image and initialize output buffer
     while( !baseIt.IsAtEnd() )
@@ -329,24 +337,28 @@ int main( int argc, char* argv[] )
         {
         while ( !baseIt.IsAtEndOfLine() )
           {
-          baseIt.Set(  std::atan2( realIt.Get() , imagIt.Get() ) );
-          tempIt.Set( 0.0 );
+          baseIt.Set(  std::atan2(  imagIt.Get() , realIt.Get() ) );
+          net_It.Set( 0.0 );
+          filtIt.Set( 0.0 );
           ++realIt;
           ++imagIt;
           ++baseIt;
-          ++tempIt;
+          ++net_It;
+          ++filtIt;
           }
           realIt.NextLine();
           imagIt.NextLine();
           baseIt.NextLine();
-          tempIt.NextLine();
+          net_It.NextLine();
+          filtIt.NextLine();
         }
       // skip two on the input image
       realIt.NextSlice(); realIt.NextSlice();
       imagIt.NextSlice(); imagIt.NextSlice();
       // skip one on the base and output image
         baseIt.NextSlice();
-        tempIt.NextSlice();
+        net_It.NextSlice();
+        filtIt.NextSlice();
       }
     // output base phase image as a place holder
     std::ostringstream basephase_filename;
@@ -400,8 +412,8 @@ int main( int argc, char* argv[] )
        std::cout << "Error getting echo time " << " (" << echotimekey << ")\n";
        std::cout << "value returned is "<<value << "\n";
        std::cout << e.what() << std::endl;
-       std::cout << "using value from command line "<< argv[7] << "\n";
-       echotime = boost::lexical_cast<double>(argv[7]);
+       std::cout << "using value from command line "<< argv[8] << "\n";
+       echotime = boost::lexical_cast<double>(argv[8]);
     }
     std::string imagfreqkey = "0018|0084";
     double imagfreq;
@@ -417,8 +429,8 @@ int main( int argc, char* argv[] )
        std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
        std::cout << "value returned is "<<value << "\n";
        std::cout << e.what() << std::endl;
-       std::cout << "using value from command line "<< argv[8] << "\n";
-       imagfreq = boost::lexical_cast<double>(argv[8]);
+       std::cout << "using value from command line "<< argv[9] << "\n";
+       imagfreq = boost::lexical_cast<double>(argv[9]);
     }
     // misc info
     // echo data
@@ -429,8 +441,11 @@ int main( int argc, char* argv[] )
     gdcmIO->GetValueFromTag(seriesIdkey , value) ;
     std::cout << " Series Number " << value   << "\n" ;
     std::cout << "alpha " << alpha  << " (ppm/degC) "
+              << "maxdiff " << maxdiff << " (degC) "
               << "echo time " << echotime << " (ms) "
               << "imaging freq " << imagfreq << " (MHz) \n";
+    // faster to multiply
+    double tmap_factor =  1.0/(2.0 * pi * imagfreq * alpha * echotime * 1.e-3) ;
     // Software Guide : EndCodeSnippet
 
    
@@ -444,12 +459,12 @@ int main( int argc, char* argv[] )
     InputIteratorType    realIt(  inputImage, inputImage->GetRequestedRegion());
     InputIteratorType    imagIt(  inputImage, inputImage->GetRequestedRegion());
     BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
-    BufferIteratorType   tempIt(   tempImage,  tempImage->GetRequestedRegion());
+    BufferIteratorType   net_It(   net_Image,  net_Image->GetRequestedRegion());
    
     realIt.SetFirstDirection(  0 );   realIt.SetSecondDirection( 1 );
     imagIt.SetFirstDirection(  0 );   imagIt.SetSecondDirection( 1 );
     baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
-    tempIt.SetFirstDirection(  0 );   tempIt.SetSecondDirection( 1 );
+    net_It.SetFirstDirection(  0 );   net_It.SetSecondDirection( 1 );
    
     // Software Guide : EndCodeSnippet 
     realIt.GoToBegin();
@@ -457,40 +472,72 @@ int main( int argc, char* argv[] )
     imagIt.GoToBegin(); imagIt.NextSlice(); // n+1
     // set base and output image to the beginnning
     baseIt.GoToBegin();
-    tempIt.GoToBegin();
-    
-    while( !tempIt.IsAtEnd() )
+    net_It.GoToBegin();
+    // compute net phase difference
+    while( !net_It.IsAtEnd() )
       {
-      while ( !tempIt.IsAtEndOfSlice() )
+      while ( !net_It.IsAtEndOfSlice() )
         {
-        while ( !tempIt.IsAtEndOfLine() )
+        while ( !net_It.IsAtEndOfLine() )
           {
-           tempIt.Set( tempIt.Get() +  
-             (std::atan2( realIt.Get(),imagIt.Get() ) - baseIt.Get()) 
-                / (0.5 * pi * imagfreq * alpha * echotime * 1.e-3 ) 
-                      );
+          net_It.Set(
+             //net_It.Get() 
+             //         +  
+             (std::atan2( imagIt.Get(), realIt.Get() ) - baseIt.Get()) * tmap_factor
+                    );
           ++realIt;
           ++imagIt;
           ++baseIt;
-          ++tempIt;
+          ++net_It;
           }
           realIt.NextLine();
           imagIt.NextLine();
           baseIt.NextLine();
-          tempIt.NextLine();
+          net_It.NextLine();
         }
       // skip two on the input image
       realIt.NextSlice(); realIt.NextSlice();
       imagIt.NextSlice(); imagIt.NextSlice();
       // skip one on the base and output image
-      tempIt.NextSlice();
+      net_It.NextSlice();
       baseIt.NextSlice();
       }
    
-    // output tmap
-    std::ostringstream tmap_filename;
-    tmap_filename << OutputDir <<"/tmap."<< iii <<".mha" ;
-    WriteImage(tempImage , tempIt, tmap_filename,sp,orgn);
+    // output unfiltered tmap
+    std::ostringstream unfiltered_filename;
+    unfiltered_filename << OutputDir <<"/unfiltered"<< iii <<".mha" ;
+    WriteImage(net_Image , net_It, unfiltered_filename,sp,orgn);
+
+//    // write filtered imaged
+//    BufferIteratorType   filtIt(   filtImage,  filtImage->GetRequestedRegion());
+//    filtIt.SetFirstDirection(  0 );   filtIt.SetSecondDirection( 1 );
+//    filtIt.GoToBegin();
+//    net_It.GoToBegin();
+//    
+//    while( !net_It.IsAtEnd() )
+//      {
+//      while ( !net_It.IsAtEndOfSlice() )
+//        {
+//        while ( !net_It.IsAtEndOfLine() )
+//          {
+//          // only set the temperature if it has changed within a physically
+//          // meaningful value. eventually, maxdiff should be predicted from the
+//          // kalman filter
+//          if ( std::abs( filtIt.Get() - net_It.Get() ) < maxdiff ) filtIt.Set( net_It.Get() );
+//          ++net_It;
+//          ++filtIt;
+//          }
+//          filtIt.NextLine();
+//          net_It.NextLine();
+//        }
+//      net_It.NextSlice();
+//      filtIt.NextSlice();
+//      }
+//    // output filtered tmap
+//    std::ostringstream filtered_filename;
+//    filtered_filename << OutputDir <<"/filtered"<< iii <<".mha" ;
+//    WriteImage(filtImage , filtIt, filtered_filename,sp,orgn);
+//
    } // end loop over time instances
      
   return EXIT_SUCCESS;
