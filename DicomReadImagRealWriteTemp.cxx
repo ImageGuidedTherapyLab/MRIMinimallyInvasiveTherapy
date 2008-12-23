@@ -76,6 +76,7 @@
 // Software Guide : BeginCodeSnippet
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <string>
 #include "itkGDCMImageIO.h"
 #include "itkGDCMSeriesFileNames.h"
@@ -97,7 +98,7 @@ const unsigned int          Dimension = 3;
 const double                       pi = 3.1415926535897931;
 // useful typedefs
 typedef double                                                 InputPixelType;
-typedef double                                          OutputPixelType;
+typedef unsigned char                                          OutputPixelType;
 typedef itk::Image<  InputPixelType, Dimension >               InputImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
 typedef itk::ImageSeriesReader<      InputImageType >              ReaderType;
@@ -154,6 +155,45 @@ InputImageType::ConstPointer GetImageData(ReaderType::Pointer  reader ,
        }
     }
   return Image; 
+}
+// write an Ini File containg dicom header info 
+void WriteIni( const char * OutputDir,
+               InputImageType::PointType            &origin,
+               InputImageType::SpacingType          &spacing,
+               InputImageType::RegionType::SizeType &size)
+{
+  std::ofstream Inifile;
+  std::ostringstream fileID ; // filename
+
+  // output file
+  fileID << OutputDir <<"/mrti.ini" ;
+  Inifile.open(fileID.str().c_str(), std::ios::out);
+
+  // dicom header parameters...
+  Inifile <<"[mrti]" << std::endl;
+
+  /* dimensions of MRTI data */
+
+  Inifile <<"xpixel=" << size[0] << std::endl ;
+  Inifile <<"ypixel=" << size[1] << std::endl ;
+  Inifile <<"nslice=" << size[2] << std::endl ;
+
+  /* physical space dimensions */
+
+  // origin
+  Inifile <<"x0=" << origin[ 0] << std::endl ;
+  Inifile <<"y0=" << origin[ 1] << std::endl ;
+  Inifile <<"z0=" << origin[ 2] << std::endl ;
+
+  // spacing
+  Inifile <<"dx=" << spacing[0] << std::endl ;
+  Inifile <<"dy=" << spacing[1] << std::endl ;
+  Inifile <<"dz=" << spacing[2] << std::endl ;
+
+  // close file 
+  Inifile.close();
+
+  return;
 }
 // subroutine to write the image to disk
 void WriteImage(InputImageType::Pointer Image, BufferIteratorType imageIt,
@@ -307,6 +347,9 @@ int main( int argc, char* argv[] )
     orgn[2] = 0.001 * orgn_mm[2];
     std::cout << "Origin = ";
     std::cout << orgn[0] << ", " << orgn[1] << ", " << orgn[2] << std::endl;
+
+    // write out header info
+    WriteIni(OutputDir,orgn,sp,size);
 
     // setup real, imaginary, base phase, and temperature map iterators
     InputIteratorType    realIt(  inputImage, inputImage->GetRequestedRegion());

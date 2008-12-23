@@ -214,9 +214,7 @@ for jobiter in JOBS:
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
                          (workdir,jobid,namejob,namejob)
    else: # default code execution
-      bsubbase = cntrlfile.get(   "compexec","bsub")
-      execcode="cd %s/%s/%s ; %s -n %d %s " % (workdir,jobid,namejob,
-                                               bsubbase,numproc,run)
+      execcode="cd %s/%s/%s ; %s " % (workdir,jobid,namejob, run % numproc)
    CODEEXEC.append(execcode)
    # command for vis file transfer
    VISxferlocation=''.join([vishost,":",viswork,'/',jobid])
