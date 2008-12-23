@@ -190,13 +190,17 @@ for jobiter in JOBS:
    cntrlfile = jobiter[1] # the control file for this job
    #determine the number of processors to run on and execution method
    numproc  = cntrlfile.getint("compexec","numproc")
-   bsubbase = cntrlfile.get(   "compexec","bsub")
    run      = cntrlfile.get(   "compexec","run")
+   bsubbase = cntrlfile.get(   "compexec","bsub")
    # code execution on lonestar
    if(comphost.split(".")[0] == "lonestar"):
       execcode="cd %s/%s/%s ; %s -J %s -n %d -o out.o%s -e err.o%s %s " %  \
                          (workdir,jobid,namejob,bsubbase,namejob,
                                         numproc,profileID,profileID,run)
+   # code execution on shamu
+   elif(comphost.split(".")[0] == "shamu"):
+      execcode="cd %s/%s/%s ; %s -N %s %s  " %  \
+                         (workdir,jobid,namejob,bsubbase,namejob,run % numproc)
    else: # default code execution
       execcode="cd %s/%s/%s ; %s -n %d %s " % (workdir,jobid,namejob,
                                                bsubbase,numproc,run)
