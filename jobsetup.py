@@ -161,8 +161,10 @@ def setupjob(config):
      # compfilelocation gives the computation host the path to the 
      # mesh and power file, the path is the same for all
      config.set("compexec","compfilelocation","%s/%s" % (workdir,jobid))
+     config.set("compexec","meshdata","%s/%s/%s" % (workdir,jobid,
+                                                meshfile.split("/").pop() ) )
      #copy the mesh file and the power file to the working directory
-     if(os.system('cp %s %s/input_compact' % (meshfile ,jobid))):
+     if(os.system('cp %s %s/%s'%(meshfile,jobid,meshfile.split("/").pop() ))):
            raise "\nerror copying mesh file %s \n" % meshfile
      if(os.system('cp %s %s/power.dat' % (powerfile ,jobid))):
            raise "\nerror copying power file %s \n" % powerfile

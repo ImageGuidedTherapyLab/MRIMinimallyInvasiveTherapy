@@ -191,17 +191,30 @@ for jobiter in JOBS:
    #determine the number of processors to run on and execution method
    numproc  = cntrlfile.getint("compexec","numproc")
    run      = cntrlfile.get(   "compexec","run")
-   bsubbase = cntrlfile.get(   "compexec","bsub")
    # code execution on lonestar
    if(comphost.split(".")[0] == "lonestar"):
+      bsubbase = cntrlfile.get(   "compexec","bsub")
       execcode="cd %s/%s/%s ; %s -J %s -n %d -o out.o%s -e err.o%s %s " %  \
                          (workdir,jobid,namejob,bsubbase,namejob,
                                         numproc,profileID,profileID,run)
    # code execution on shamu
    elif(comphost.split(".")[0] == "shamu"):
-      execcode="cd %s/%s/%s ; %s -N %s %s  " %  \
-                         (workdir,jobid,namejob,bsubbase,namejob,run % numproc)
+      # write a qsub file
+      qsubfile=open("%s/%s/%s/%s.qsub" %(workdir,jobid,namejob,namejob) ,"w")
+      qsubfile.write("#!/bin/bash             \n"           )
+      qsubfile.write("#$ -pe mpich %d         \n" % numproc )
+      qsubfile.write("#$ -N %s                \n" % namejob )
+      qsubfile.write("#$ -cwd                 \n"           )
+      qsubfile.write("#$ -S /bin/bash         \n"           )
+      qsubfile.write("echo 'Got $NSLOTS slots'\n"           )
+      qsubfile.write("echo $TMP               \n"           )
+      qsubfile.write(run)
+      # ensure entire file written before continuing
+      qsubfile.close; qsubfile.flush() 
+      execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
+                         (workdir,jobid,namejob,namejob)
    else: # default code execution
+      bsubbase = cntrlfile.get(   "compexec","bsub")
       execcode="cd %s/%s/%s ; %s -n %d %s " % (workdir,jobid,namejob,
                                                bsubbase,numproc,run)
    CODEEXEC.append(execcode)
