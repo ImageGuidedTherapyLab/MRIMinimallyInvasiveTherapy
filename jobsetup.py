@@ -157,8 +157,8 @@ def setupjob(config):
      nspeedupjobs    = config.getint( "compexec" , "vary_proc" ) 
      comp_rank_begin = config.getint( "compexec" , "comp_rank_begin" ) 
      def procmap(i):
-        return "%d" % (  max(8*i + comp_rank_begin,1)  )
-     numproclist   = map(procmap,range(nspeedupjobs))
+        return "%d" % ( max(comp_rank_begin*i,1) + comp_rank_begin )
+     numproclist   = map(procmap,range(1,nspeedupjobs+1))
      #the command appended is meant to do nothing but keep track of range
      for i in range(nspeedupjobs):
        listmeshcmd.append(['""echo %s/%%s %s/%%s > /dev/null""' % \

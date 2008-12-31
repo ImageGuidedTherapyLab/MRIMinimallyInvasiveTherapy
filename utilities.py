@@ -149,6 +149,8 @@ def control_defaults(controlfile):
      registration_dir  = "/org/groups/oden/fuentes/DDDAS/trunk/registration"
    if(comphost.split(".")[0]=="lonestar"):
      comp_rank_begin=4
+   elif(comphost.split(".")[0]=="shamu"):
+     comp_rank_begin=8
    else:
      comp_rank_begin=1
 
