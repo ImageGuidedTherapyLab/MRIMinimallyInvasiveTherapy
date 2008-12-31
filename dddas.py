@@ -85,20 +85,13 @@ dddas = utilities.control_defaults(controlfile)
 #read the main dddas control file
 dddas.readfp( open("%s" % controlfile , "r") )
 
-#run some quick error checks to ensure that the thermal images, planning images,
-# and the FEM mesh have been registered either manually or automatically...
+#quick error check to ensure that an initial laser position is given
 try:
-  mrti_x0=dddas.getfloat(     "mrti"   , "x0")
-  mrti_y0=dddas.getfloat(     "mrti"   , "y0")
-  mrti_z0=dddas.getfloat(     "mrti"   , "z0")
-  mrti_dx=dddas.getfloat(     "mrti"   , "dx")
-  mrti_dy=dddas.getfloat(     "mrti"   , "dy")
-  mrti_dz=dddas.getfloat(     "mrti"   , "dz")
   x_0    =dddas.getfloat("source_laser","x_0")
   y_0    =dddas.getfloat("source_laser","y_0")
   z_0    =dddas.getfloat("source_laser","z_0")
 except ConfigParser.NoOptionError:
-  assert False, "\n\n    REGISTRATION DATA NOT FOUND !!!!!!!  "
+  assert False, "\n\n    Thermal Source DATA NOT FOUND !!!!!!!  "
 
 #get the jobid
 checkid = dddas.get("compexec","jobid")
@@ -141,8 +134,12 @@ else:
    dddas.set("output","byteswap","true") 
 
 # set the MRTI file location on the comphost
-dddas.set("mrti" ,"filein"   ,"%s/mridat/%s%%d%s%%d.%s" % 
-                          (workdir,MRTI_filebase,MRTI_filemid,MRTI_filesuffix) )
+if( not loccomphost ): 
+  dddas.set("mrti" ,"filein"   ,"%s/mridat/%s%%d%s%%d.%s" % 
+        (workdir,MRTI_filebase,MRTI_filemid,MRTI_filesuffix) )
+else:
+  dddas.set("mrti" ,"filein"   ,"%s/%s/%s%%d%s%%d.%s" % 
+        (workdir,MRTI_filelocation,MRTI_filebase,MRTI_filemid,MRTI_filesuffix) )
          
 
 #setup the job:
@@ -169,6 +166,7 @@ if(MRTI_ntime < MRTI_nzero):
 #echo data transfer info
 if(MRTI_transfer): 
    print "transfering original MRTI data"
+   raise "\n\n    haven't added code to transfer the header data in mrti.ini"
    MRTIavs  = True  #should be true transferring
 if(femavs): #assume sending 2 avs files per ideal step (1 fem 1 params) 
    print "transfering fem data (avs format)"
@@ -275,13 +273,13 @@ vislasfile.close
 vislasfile.flush() # ensure the entire file is written before continuing
 
 # write out the filesize file
-MRTIimg_sizefile    = dddas.get("mrti","img_sizefile")
-MRTIfilesize=open("%s/%s" % (MRTI_filelocation,MRTIimg_sizefile) ,"w")
-MRTI_xpixel = dddas.getint(   "mrti"  ,"xpixel")
-MRTI_ypixel = dddas.getint(   "mrti"  ,"ypixel")
-MRTIfilesize.write("%d \n" % (MRTI_xpixel * MRTI_ypixel) ) # assume byte data
-MRTIfilesize.close
-MRTIfilesize.flush() # ensure the entire file is written before continuing
+#MRTIimg_sizefile    = dddas.get("mrti","img_sizefile")
+#MRTIfilesize=open("%s/%s" % (MRTI_filelocation,MRTIimg_sizefile) ,"w")
+#MRTI_xpixel = dddas.getint(   "mrti"  ,"xpixel")
+#MRTI_ypixel = dddas.getint(   "mrti"  ,"ypixel")
+#MRTIfilesize.write("%d \n" % (MRTI_xpixel * MRTI_ypixel) ) # assume byte data
+#MRTIfilesize.close
+#MRTIfilesize.flush() # ensure the entire file is written before continuing
 
 #create DATA transfer script for MRI/MRTI data from local host to comp host
 if( not loccomphost ):  # do not transfer if are doing local computations
