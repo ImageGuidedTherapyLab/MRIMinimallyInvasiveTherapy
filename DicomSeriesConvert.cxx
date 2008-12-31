@@ -685,7 +685,7 @@ int main( int argc, char* argv[] )
     typedef itk::ImageFileWriter< ImageType > WriterType;
     WriterType::Pointer writer = WriterType::New();
     
-    sprintf(file_o,"%s.mha",dicomdir);
+    sprintf(file_o,"%s-scaled.mha",dicomdir);
 
     writer->SetFileName( file_o );
 

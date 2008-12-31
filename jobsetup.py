@@ -69,46 +69,46 @@ def setupjob(config):
    databaseanfact = [.71,       # myocardium
                      .862,      # human prostate in-vitro
                      .97]       # prostate rat tumor
-   try: # monte carlo filename(s) found
-      mc_filelocation=config.get("source_laser","mc_filelocation")
-      # during preprocessing mc_file_name is used as a printf file format
-      mc_filefmt=config.get("source_laser","mc_file_name")
-   except ConfigParser.NoOptionError:
-      #mc_file_name not found
-      #mc_filecmd is meant to do nothing
-      mc_filecmd= '""echo %%d %s/%%s/files/MC.asc > /dev/null""' % jobid   
-      #error checking
-      if(config.get("hp3d","pde")=="nonlinpennesmonte"  or
-         config.getboolean("compexec","vary_pde")         ):
-        raise "\n\n    NO MC GRID FOUND FOR MONTE CARLO RUN!!!!!!!  "
-   else:
-      if(config.getboolean("compexec","vary_mc_file")):
-        # this picks out the files from the MC grid database that we are 
-        #  interested in. vary_mc_cmds should be a python command to build
-        #  the lists of interest. it should have NO SPACES i.e.
-        #  config.get("compexec","vary_mc_cmds") == listmu_s=[3.*100.,47.0*100,435.0*100.];listmu_a=[15.5*100.,1.23*100.,.36*100.,.04*100.];listanfact=[.862]
-        exec config.get("compexec","vary_mc_cmds")
-        if(len(listmu_s) > 1):
-           paramstudyid.append('mu_s=%.1e')
-           paramstudvar.append('mu_s')
-        if(len(listmu_a) > 1):
-           paramstudyid.append('mu_a=%.1e')
-           paramstudvar.append('mu_a')
-        if(len(listanfact) > 1):
-           paramstudyid.append('anfact=%.1e')
-           paramstudvar.append('anfact')
-      else: # same mc grid for each run
-        listmu_a        = [config.getfloat("source_laser","mu_a")]
-        listmu_s        = [config.getfloat("source_laser","mu_s")]
-        listanfact      = [config.getfloat("source_laser","anfact")]
-      # mc_filelocation gives the computation host the path to the mc_file
-      # the path is the same for all
-      config.set("source_laser","mc_filelocation","files" )
-      # set the default MC filename
-      config.set("source_laser","mc_file_name","MC.asc")
-      # mc_filecmd copies the mc grids to the default location
-      mc_filecmd= '""cp %s/%s %s/%%s/files/MC.asc""' % \
-                                       (mc_filelocation,mc_filefmt,jobid)   
+   #try: # monte carlo filename(s) found
+   #   mc_filelocation=config.get("source_laser","mc_filelocation")
+   #   # during preprocessing mc_file_name is used as a printf file format
+   #   mc_filefmt=config.get("source_laser","mc_file_name")
+   #except ConfigParser.NoOptionError:
+   #   #mc_file_name not found
+   #mc_filecmd is meant to do nothing
+   mc_filecmd= '""echo %%d %s/%%s/files/MC.asc > /dev/null""' % jobid   
+   #   #error checking
+   #   if(config.get("hp3d","pde")=="nonlinpennesmonte"  or
+   #      config.getboolean("compexec","vary_pde")         ):
+   #     raise "\n\n    NO MC GRID FOUND FOR MONTE CARLO RUN!!!!!!!  "
+   #else:
+   #if(config.getboolean("compexec","vary_mc_file")):
+   #  # this picks out the files from the MC grid database that we are 
+   #  #  interested in. vary_mc_cmds should be a python command to build
+   #  #  the lists of interest. it should have NO SPACES i.e.
+   #  #  config.get("compexec","vary_mc_cmds") == listmu_s=[3.*100.,47.0*100,435.0*100.];listmu_a=[15.5*100.,1.23*100.,.36*100.,.04*100.];listanfact=[.862]
+   #  exec config.get("compexec","vary_mc_cmds")
+   #  if(len(listmu_s) > 1):
+   #     paramstudyid.append('mu_s=%.1e')
+   #     paramstudvar.append('mu_s')
+   #  if(len(listmu_a) > 1):
+   #     paramstudyid.append('mu_a=%.1e')
+   #     paramstudvar.append('mu_a')
+   #  if(len(listanfact) > 1):
+   #     paramstudyid.append('anfact=%.1e')
+   #     paramstudvar.append('anfact')
+   #else: # same mc grid for each run
+   listmu_a        = [config.getfloat("source_laser","mu_a")]
+   listmu_s        = [config.getfloat("source_laser","mu_s")]
+   listanfact      = [config.getfloat("source_laser","anfact")]
+   # mc_filelocation gives the computation host the path to the mc_file
+   # the path is the same for all
+   config.set("source_laser","mc_filelocation","files" )
+   # set the default MC filename
+   config.set("source_laser","mc_file_name","MC.asc")
+   # mc_filecmd copies the mc grids to the default location
+   # mc_filecmd= '""cp %s/%s %s/%%s/files/MC.asc""' % \
+   #                                 (mc_filelocation,mc_filefmt,jobid)   
 
    #get the host name of the visualization computer
    vishost = config.get("output","vishost")
@@ -147,11 +147,38 @@ def setupjob(config):
      # meshcmd copies the meshes to the default location
      config.set("compexec","compfilelocation","files" )
      numproclist   = [config.get("compexec","numproc" )] 
+   elif(config.getint("compexec","vary_proc")):
+     print """
+        vary_proc == true
+        setting up to create speedup plot
+        meshdata and powerdata should point to a file 
+     """
+     #get number of jobs to run
+     nspeedupjobs    = config.getint( "compexec" , "vary_proc" ) 
+     comp_rank_begin = config.getint( "compexec" , "comp_rank_begin" ) 
+     def procmap(i):
+        return "%d" % (  max(8*i + comp_rank_begin,1)  )
+     numproclist   = map(procmap,range(nspeedupjobs))
+     #the command appended is meant to do nothing but keep track of range
+     for i in range(nspeedupjobs):
+       listmeshcmd.append(['""echo %s/%%s %s/%%s > /dev/null""' % \
+                                                     (jobid,jobid) , i ])
+     # compfilelocation gives the computation host the path to the 
+     # mesh and power file, the path is the same for all
+     config.set("compexec","compfilelocation","%s/%s" % (workdir,jobid))
+     config.set("compexec","meshdata","%s/%s/%s" % (workdir,jobid,
+                                                meshfile.split("/").pop() ) )
+     #copy the mesh file and the power file to the working directory
+     if(os.system('cp %s %s/%s'%(meshfile,jobid,meshfile.split("/").pop() ))):
+           raise "\nerror copying mesh file %s \n" % meshfile
+     if(os.system('cp %s %s/power.dat' % (powerfile ,jobid))):
+           raise "\nerror copying power file %s \n" % powerfile
    else: 
      # default is to use a single pre-registered mesh for each run
      print """
         vary_mesh  == false
         vary_power == false
+        vary_proc  == false
         meshdata and powerdata should point to a file 
      """
      #the command appended to meshcmd is meant to do nothing
@@ -407,6 +434,9 @@ def setupjob(config):
                  optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
                  optimize_pow, optimize_mu_a, optimize_mu_s, 
                    w_0_field, k_0_field,k_1_ub,objective,pde) in paramlist:
+      # extract variables from iterator
+      meshcmd       = meshcmditer[0]
+      numproclistid = meshcmditer[1]
       # create directory hierarchy to store files
       namejob= "%s%02d" % (jobid,id)
       fcnvalfile.write("echo %s using %s \n" % (namejob,pde))
@@ -436,7 +466,8 @@ def setupjob(config):
       print "creating job %s using %s " % (namejob,pde)
       id = id + 1 # update counter
       # gnuplot data
-      exec "legend = '"+",".join(paramstudyid)+"' % (" + ",".join(paramstudvar) + ")"
+      #  exec "legend = '"+",".join(paramstudyid)+"' % (" + ",".join(paramstudvar) + ")"
+      legend = ""
       gnuplotfunc.append('"%s/func.dat" using 1:2 title "%s %s" w lp lw 2 ' % \
                                                   (namejob,namejob,legend) )
       gnuplotiter.append('"%s/iter.dat" using 1:2 title "%s %s" w lp lw 2 ' % \
@@ -485,8 +516,6 @@ def setupjob(config):
       cntrlfile.set("cauchy_boundary" ,"coeff_cool", "%f" % coeff_cool )
       run = cntrlfile.get( "compexec","run")
       cntrlfile.set("compexec" ,"run", run + method )
-      meshcmd       = meshcmditer[0]
-      numproclistid = meshcmditer[1]
       cntrlfile.set("compexec" ,"numproc", numproclist[numproclistid])
       # execute any mesh file and power file commands
       if(os.system(meshcmd % (namejob,namejob))):
