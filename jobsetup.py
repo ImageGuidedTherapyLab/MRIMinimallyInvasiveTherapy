@@ -169,7 +169,14 @@ def setupjob(config):
      config.set("compexec","meshdata","%s/%s/%s" % (workdir,jobid,
                                                 meshfile.split("/").pop() ) )
      #copy the mesh file and the power file to the working directory
-     if(os.system('cp %s %s/%s'%(meshfile,jobid,meshfile.split("/").pop() ))):
+     try:
+       # input compact format will throw exception
+       fileext  = meshfile.split(".")[1] 
+       if(fileext == "e"): 
+        if(os.system('cp %s %s/%s'%(meshfile,jobid,meshfile.split("/").pop()))):
+           raise "\nerror copying mesh file %s \n" % meshfile
+     except:
+       if(os.system('cp %s %s/input_compact'%(meshfile,jobid))):
            raise "\nerror copying mesh file %s \n" % meshfile
      if(os.system('cp %s %s/power.dat' % (powerfile ,jobid))):
            raise "\nerror copying power file %s \n" % powerfile
