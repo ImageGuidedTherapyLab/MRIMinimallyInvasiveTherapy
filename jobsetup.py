@@ -47,6 +47,7 @@ def setupjob(config):
    listpde          = [config.get("hp3d","pde")]
    listw_0_field    = [config.get("field","w_0_field")]
    listk_0_field    = [config.get("field","k_0_field")]
+   listntime_init   = [config.getint("qoi_0","ideal_ntime_init")]
    listobjective    = [config.get("qoi_0","objective")]
    # laser params default from control file
    listmu_a         = [config.getfloat("source_laser","mu_a")]
@@ -320,6 +321,15 @@ def setupjob(config):
      listk_0_field = ["false","true"]
      paramstudyid.append('k_0_fld=%d')
      paramstudvar.append('k_0_field')
+   if(config.getint("compexec","vary_ntime_init")):
+     vary_ntime_init=config.getint("compexec","vary_ntime_init")
+     qoi0_nzero=config.getint("qoi_0","ideal_nzero_init")
+     qoi0_ntime=config.getint("qoi_0","ideal_ntime_init")
+     def ntimemap(i):
+        return ( qoi0_nzero+(qoi0_ntime-qoi0_nzero)/vary_ntime_init *i )
+     listntime_init   = map(ntimemap,range(0,vary_ntime_init+1))
+     paramstudyid.append('ntime=%02d')
+     paramstudvar.append('ntime')
 
    # echo params
    print "listk_0       "      , listk_0       
@@ -356,6 +366,7 @@ def setupjob(config):
    print "listobjective"       , listobjective
    print "listw_0_field"       , listw_0_field 
    print "listk_0_field"       , listk_0_field 
+   print "listntime_init"      , listntime_init 
    print "mc_filecmd"          , mc_filecmd 
    #use list comprehension to build entire set of parameter list
    paramlist =[ (meshcmditer,
@@ -363,7 +374,7 @@ def setupjob(config):
                  mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
                  optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
                  optimize_pow, optimize_mu_a, optimize_mu_s, 
-                      w_0_field, k_0_field,k_1_ub,objective,pde)
+                      w_0_field, k_0_field,k_1_ub,objective,ntime_init,pde)
                     for meshcmditer      in listmeshcmd   
                     for k_0              in listk_0 
                     for k_1              in listk_1 
@@ -397,6 +408,7 @@ def setupjob(config):
                     for k_0_field        in listk_0_field  
                     for k_1_ub           in listk_1_ub        
                     for objective        in listobjective        
+                    for ntime_init       in listntime_init 
                     for pde              in listpde       ]
 
    if( len(paramlist)  > 40 ) : 
@@ -436,11 +448,11 @@ def setupjob(config):
    gnuplotk_3=[]  ; gnuplotx_0=[]  ; gnuploty_0=[]  ; gnuplotz_0=[]
    gnuplotw_ni=[] ; gnuplotw_id=[] ;
    for (meshcmditer,
-                 k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
-                 mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
-                 optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
-                 optimize_pow, optimize_mu_a, optimize_mu_s, 
-                   w_0_field, k_0_field,k_1_ub,objective,pde) in paramlist:
+          k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
+          mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
+          optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
+          optimize_pow, optimize_mu_a, optimize_mu_s, 
+          w_0_field, k_0_field,k_1_ub,objective,ntime_init,pde) in paramlist:
       # extract variables from iterator
       meshcmd       = meshcmditer[0]
       numproclistid = meshcmditer[1]
@@ -499,28 +511,28 @@ def setupjob(config):
       utilities.create_directories(jobid,namejob)
       # functions are call by reference need to deepcopy
       cntrlfile = copy.deepcopy(config) 
-      cntrlfile.set(     "field"      ,"k_0_field" ,  k_0_field        )
-      cntrlfile.set(     "field"      ,"w_0_field" ,  w_0_field        )
-      cntrlfile.set("thermalcond"     ,"k_0"       , "%f" % k_0        )
-      cntrlfile.set("thermalcond"     ,"k_1"       , "%f" % k_1        )
-      cntrlfile.set("thermalcond"     ,"k_1_ub"    , "%f" % k_1_ub     )
-      cntrlfile.set("thermalcond"     ,"k_2"       , "%f" % k_2        )
-      cntrlfile.set("thermalcond"     ,"k_3"       , "%f" % k_3        )
-      cntrlfile.set("perfusivity"     ,"w_0"       , "%f" % w_0        )
-      cntrlfile.set("perfusivity"     ,"w_n"       , "%f" % w_n        )
-      cntrlfile.set("perfusivity"     ,"w_i"       , "%f" % w_i        )
-      cntrlfile.set("perfusivity"     ,"w_d"       , "%f" % w_d        )
-      cntrlfile.set("perfusivity"     ,"w_2"       , "%f" % w_2        )
-      cntrlfile.set("perfusivity"     ,"w_ni"      , "%f" % w_ni       )
-      cntrlfile.set("perfusivity"     ,"w_id"      , "%f" % w_id       )
-      cntrlfile.set("source_laser"    ,"x_0"       , "%f" % x_0        ) 
-      cntrlfile.set("source_laser"    ,"y_0"       , "%f" % y_0        )
-      cntrlfile.set("source_laser"    ,"z_0"       , "%f" % z_0        )
-      cntrlfile.set("source_laser"    ,"mu_a"      , "%f" % mu_a       )
-      cntrlfile.set("source_laser"    ,"mu_s"      , "%f" % mu_s       )
-      cntrlfile.set("source_laser"    ,"anfact"    , "%f" % anfact     )
-      cntrlfile.set("neumann_boundary","g_flux"    , "%f" % g_flux     )
-      cntrlfile.set("cauchy_boundary" ,"coeff_cool", "%f" % coeff_cool )
+      cntrlfile.set(     "field"      ,"k_0_field"       ,  k_0_field        )
+      cntrlfile.set(     "field"      ,"w_0_field"       ,  w_0_field        )
+      cntrlfile.set("thermalcond"     ,"k_0"             , "%f" % k_0        )
+      cntrlfile.set("thermalcond"     ,"k_1"             , "%f" % k_1        )
+      cntrlfile.set("thermalcond"     ,"k_1_ub"          , "%f" % k_1_ub     )
+      cntrlfile.set("thermalcond"     ,"k_2"             , "%f" % k_2        )
+      cntrlfile.set("thermalcond"     ,"k_3"             , "%f" % k_3        )
+      cntrlfile.set("perfusivity"     ,"w_0"             , "%f" % w_0        )
+      cntrlfile.set("perfusivity"     ,"w_n"             , "%f" % w_n        )
+      cntrlfile.set("perfusivity"     ,"w_i"             , "%f" % w_i        )
+      cntrlfile.set("perfusivity"     ,"w_d"             , "%f" % w_d        )
+      cntrlfile.set("perfusivity"     ,"w_2"             , "%f" % w_2        )
+      cntrlfile.set("perfusivity"     ,"w_ni"            , "%f" % w_ni       )
+      cntrlfile.set("perfusivity"     ,"w_id"            , "%f" % w_id       )
+      cntrlfile.set("source_laser"    ,"x_0"             , "%f" % x_0        ) 
+      cntrlfile.set("source_laser"    ,"y_0"             , "%f" % y_0        )
+      cntrlfile.set("source_laser"    ,"z_0"             , "%f" % z_0        )
+      cntrlfile.set("source_laser"    ,"mu_a"            , "%f" % mu_a       )
+      cntrlfile.set("source_laser"    ,"mu_s"            , "%f" % mu_s       )
+      cntrlfile.set("source_laser"    ,"anfact"          , "%f" % anfact     )
+      cntrlfile.set("neumann_boundary","g_flux"          , "%f" % g_flux     )
+      cntrlfile.set("cauchy_boundary" ,"coeff_cool"      , "%f" % coeff_cool )
       run = cntrlfile.get( "compexec","run")
       cntrlfile.set("compexec" ,"run", run + method )
       cntrlfile.set("compexec" ,"numproc", numproclist[numproclistid])
@@ -537,16 +549,17 @@ def setupjob(config):
       if(os.system(mc_filecmd % (ilocMCgrid,namejob))):
          raise "\n\n    error with %s %% (%d,%s)" % \
                                         (mc_filecmd,ilocMCgrid,namejob)
-      cntrlfile.set("qoi_0","optimize_w_0" , optimize_w_0 )
-      cntrlfile.set("qoi_0","optimize_k_0" , optimize_k_0 )
-      cntrlfile.set("qoi_0","optimize_k_1" , optimize_k_1 )
-      cntrlfile.set("qoi_0","optimize_k_2" , optimize_k_2 )
-      cntrlfile.set("qoi_0","optimize_k_3" , optimize_k_3 )
-      cntrlfile.set("qoi_0","optimize_pow" , optimize_pow )
-      cntrlfile.set("qoi_0","optimize_mu_a", optimize_mu_a)
-      cntrlfile.set("qoi_0","optimize_mu_s", optimize_mu_s)
-      cntrlfile.set("qoi_0",  "objective"  ,   objective  )
-      cntrlfile.set("hp3d" ,     "pde"     ,      pde     )
+      cntrlfile.set("qoi_0","optimize_w_0"     ,   optimize_w_0    )
+      cntrlfile.set("qoi_0","optimize_k_0"     ,   optimize_k_0    )
+      cntrlfile.set("qoi_0","optimize_k_1"     ,   optimize_k_1    )
+      cntrlfile.set("qoi_0","optimize_k_2"     ,   optimize_k_2    )
+      cntrlfile.set("qoi_0","optimize_k_3"     ,   optimize_k_3    )
+      cntrlfile.set("qoi_0","optimize_pow"     ,   optimize_pow    )
+      cntrlfile.set("qoi_0","optimize_mu_a"    ,   optimize_mu_a   )
+      cntrlfile.set("qoi_0","optimize_mu_s"    ,   optimize_mu_s   )
+      cntrlfile.set("qoi_0",  "objective"      ,     objective     )
+      cntrlfile.set("qoi_0","ideal_ntime_init" , "%d" % ntime_init )
+      cntrlfile.set("hp3d" ,       "pde"       ,        pde        )
       joblist.append([namejob,cntrlfile])
    #close script
    fcnvalfile.close; fcnvalfile.flush()
@@ -597,42 +610,6 @@ def setupjob(config):
    fcnvalfile=os.chmod("%s/printvalue.txt" % jobid ,00770)
 
    return joblist
-
-def distribute_nopts(config):
-   print """distribute_nopts:
-      setting up to distribute each optimization step into several batch jobs 
-   """
-   joblist=[]
-   workdir = config.get( "compexec" , "workdir" ) 
-   jobid   = config.get( "compexec" , "jobid" ) 
-   #get data used for batch submission
-   noptsteps   = config.getint( "qoi_0" , "noptsteps"        ) 
-   noffset     = config.getint( "qoi_0" , "noffset"          ) 
-   numideal    = config.getint( "qoi_0" , "numideal"         ) 
-   ideal_nzero = config.getint( "qoi_0" , "ideal_nzero_init" ) 
-   ideal_ntime = config.getint( "qoi_0" , "ideal_ntime_init" ) 
-   #create batch job list
-   for i in range(noptsteps): # range stops at n - 1
-      # create directory hierarchy to store files
-      namejob= "%s%d" % (jobid,i)
-      utilities.create_directories(jobid,namejob)
-      # functions are call by reference need to deepcopy
-      cntrlfile = copy.deepcopy(config) 
-      cntrlfile.set("compexec","num_qoi"         ,"1"              )
-      cntrlfile.set("qoi_0","noptsteps"       ,"1"              )
-      cntrlfile.set("qoi_0","ideal_nzero_init","%d" % (ideal_nzero+i*noffset ) )
-      cntrlfile.set("qoi_0","ideal_ntime_init","%d" % (ideal_ntime+i*numideal) )
-      # compfilelocation gives the computation host the path to the 
-      # use the same mesh file and power file for all batch runs
-      cntrlfile.set("compexec","compfilelocation","%s/%s" % (workdir,jobid) )
-      joblist.append([namejob,cntrlfile])
-   #meshdata and powerdata used to point to files
-   #copy the mesh file and the power file to the working directory
-   meshfile =config.get("compexec","meshdata" ) 
-   powerfile=config.get("compexec","powerdata") 
-   os.system('cp %s %s/input_compact' % (meshfile ,jobid))
-   os.system('cp %s %s/power.dat' % (powerfile ,jobid))
-   return [joblist,["",""]]
 
 #debugging
 if __name__ == "__main__":
