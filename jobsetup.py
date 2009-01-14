@@ -44,6 +44,7 @@ def setupjob(config):
    listoptimize_mu_a= [config.get("qoi_0","optimize_mu_a")]
    listoptimize_mu_s= [config.get("qoi_0","optimize_mu_s")]
    listk_1_ub       = [config.getfloat("thermalcond","k_1_ub")]
+   listk_0_ub       = [config.getfloat("thermalcond","k_0_ub")]
    listpde          = [config.get("hp3d","pde")]
    listw_0_field    = [config.get("field","w_0_field")]
    listk_0_field    = [config.get("field","k_0_field")]
@@ -307,6 +308,10 @@ def setupjob(config):
      listk_1_ub=[ 0.31e0 ,0.33e0,0.35e0,0.38e0]
      paramstudyid.append('k_1_ub=%.1e')
      paramstudvar.append('k_1_ub')
+   if(config.getboolean("compexec","vary_k_0_ub")):
+     listk_0_ub=[ 0.87e0 ,5.87e0]
+     paramstudyid.append('k_0_ub=%.1e')
+     paramstudvar.append('k_0_ub')
    if(config.getboolean("compexec","vary_objective")):
      listobjective = ["temp_control","dam_control_arr"]
    if(config.getboolean("compexec","vary_pde")):
@@ -360,6 +365,7 @@ def setupjob(config):
    print "listoptimize_pow"    , listoptimize_pow
    print "listoptimize_mu_a"   , listoptimize_mu_a
    print "listoptimize_mu_s"   , listoptimize_mu_s
+   print "listk_0_ub"          , listk_0_ub
    print "listk_1_ub"          , listk_1_ub
    print "listmeshcmd"         , listmeshcmd
    print "listpde"             , listpde
@@ -374,7 +380,7 @@ def setupjob(config):
                  mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
                  optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
                  optimize_pow, optimize_mu_a, optimize_mu_s, 
-                      w_0_field, k_0_field,k_1_ub,objective,ntime_init,pde)
+                 w_0_field, k_0_field,k_0_ub,k_1_ub,objective,ntime_init,pde)
                     for meshcmditer      in listmeshcmd   
                     for k_0              in listk_0 
                     for k_1              in listk_1 
@@ -406,6 +412,7 @@ def setupjob(config):
                     for optimize_mu_s    in listoptimize_mu_s  
                     for w_0_field        in listw_0_field  
                     for k_0_field        in listk_0_field  
+                    for k_0_ub           in listk_0_ub        
                     for k_1_ub           in listk_1_ub        
                     for objective        in listobjective        
                     for ntime_init       in listntime_init 
@@ -451,8 +458,8 @@ def setupjob(config):
           k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
           mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
           optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
-          optimize_pow, optimize_mu_a, optimize_mu_s, 
-          w_0_field, k_0_field,k_1_ub,objective,ntime_init,pde) in paramlist:
+          optimize_pow, optimize_mu_a, optimize_mu_s, w_0_field, 
+          k_0_field,k_0_ub,k_1_ub,objective,ntime_init,pde) in paramlist:
       # extract variables from iterator
       meshcmd       = meshcmditer[0]
       numproclistid = meshcmditer[1]
@@ -514,6 +521,8 @@ def setupjob(config):
       cntrlfile.set(     "field"      ,"k_0_field"       ,  k_0_field        )
       cntrlfile.set(     "field"      ,"w_0_field"       ,  w_0_field        )
       cntrlfile.set("thermalcond"     ,"k_0"             , "%f" % k_0        )
+      #cntrlfile.set("thermalcond"     ,"k_0"             , "%f" % k_0_ub     )
+      cntrlfile.set("thermalcond"     ,"k_0_ub"          , "%f" % k_0_ub     )
       cntrlfile.set("thermalcond"     ,"k_1"             , "%f" % k_1        )
       cntrlfile.set("thermalcond"     ,"k_1_ub"          , "%f" % k_1_ub     )
       cntrlfile.set("thermalcond"     ,"k_2"             , "%f" % k_2        )
