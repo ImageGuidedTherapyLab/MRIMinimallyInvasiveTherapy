@@ -328,8 +328,10 @@ def setupjob(config):
      paramstudyid.append('k_0_fld=%d')
      paramstudvar.append('k_0_field')
    if(config.getboolean("compexec","vary_time_window")):
-     #FIXME : really???  hard code the bounds???
-     listtime_window=[[17,23],[17,29],[17,35],[17,41],[23,41]]
+     time_window_list= config.get("compexec","listtime_window")
+     #assumed of the form time_window_list "[18,234];[13,58];[12,321];[0,1]"
+     listtime_window = map(utilities.ExtractIntData,time_window_list.split(";"))
+     
 
    # echo params
    print "listk_0       "      , listk_0       

@@ -254,6 +254,18 @@ def variable_range(IniFile,ParamID,mapping="linear",LB="lb",UB="ub"):
      raise
    return map(mappingfunction,range(1,ndiv+1))
 
+#assume ListString of the form ="[18,234,13];[58];[873,12,321,235];[1,0]"
+def ExtractIntData(x):
+   entries = filter(len,filter(len,x.split("["))[0].split("]"))[0].split(",")
+   return map(int, entries)
+   
+
+#debugging
+if __name__ == "__main__":
+   x = "[18,234,13];[58];[873,12,321,235];[1,0]"
+   y = map(ExtractIntData,x.split(";"))
+   print y
+
 def singlehistory():
     return """# Gnuplot script file for plotting optimization history
 #   usage:
@@ -1053,7 +1065,3 @@ manipulator "geometry viewer.user.14":"Update Image" -w none
 # End of file
 """
 
-#debugging
-if __name__ == "__main__":
-   for i in range(50):
-      print base10toN(i,3)
