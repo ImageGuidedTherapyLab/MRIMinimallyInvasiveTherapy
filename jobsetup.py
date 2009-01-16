@@ -48,7 +48,8 @@ def setupjob(config):
    listpde          = [config.get("hp3d","pde")]
    listw_0_field    = [config.get("field","w_0_field")]
    listk_0_field    = [config.get("field","k_0_field")]
-   listntime_init   = [config.getint("qoi_0","ideal_ntime_init")]
+   listtime_window  = [[config.getint("qoi_0","ideal_nzero_init"), 
+                        config.getint("qoi_0","ideal_ntime_init")]]
    listobjective    = [config.get("qoi_0","objective")]
    # laser params default from control file
    listmu_a         = [config.getfloat("source_laser","mu_a")]
@@ -326,15 +327,9 @@ def setupjob(config):
      listk_0_field = ["false","true"]
      paramstudyid.append('k_0_fld=%d')
      paramstudvar.append('k_0_field')
-   if(config.getint("compexec","vary_ntime_init")):
-     vary_ntime_init=config.getint("compexec","vary_ntime_init")
-     qoi0_nzero=config.getint("qoi_0","ideal_nzero_init")
-     qoi0_ntime=config.getint("qoi_0","ideal_ntime_init")
-     def ntimemap(i):
-        return ( qoi0_nzero+(qoi0_ntime-qoi0_nzero)/vary_ntime_init *i )
-     listntime_init   = map(ntimemap,range(0,vary_ntime_init+1))
-     paramstudyid.append('ntime=%02d')
-     paramstudvar.append('ntime')
+   if(config.getboolean("compexec","vary_time_window")):
+     #FIXME : really???  hard code the bounds???
+     listtime_window=[[17,23],[17,29],[17,35],[17,41],[23,41]]
 
    # echo params
    print "listk_0       "      , listk_0       
@@ -372,7 +367,7 @@ def setupjob(config):
    print "listobjective"       , listobjective
    print "listw_0_field"       , listw_0_field 
    print "listk_0_field"       , listk_0_field 
-   print "listntime_init"      , listntime_init 
+   print "listtime_window"     , listtime_window 
    print "mc_filecmd"          , mc_filecmd 
    #use list comprehension to build entire set of parameter list
    paramlist =[ (meshcmditer,
@@ -380,7 +375,7 @@ def setupjob(config):
                  mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
                  optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
                  optimize_pow, optimize_mu_a, optimize_mu_s, 
-                 w_0_field, k_0_field,k_0_ub,k_1_ub,objective,ntime_init,pde)
+                 w_0_field, k_0_field,k_0_ub,k_1_ub,objective,time_window,pde)
                     for meshcmditer      in listmeshcmd   
                     for k_0              in listk_0 
                     for k_1              in listk_1 
@@ -415,7 +410,7 @@ def setupjob(config):
                     for k_0_ub           in listk_0_ub        
                     for k_1_ub           in listk_1_ub        
                     for objective        in listobjective        
-                    for ntime_init       in listntime_init 
+                    for time_window      in listtime_window 
                     for pde              in listpde       ]
 
    if( len(paramlist)  > 40 ) : 
@@ -459,7 +454,7 @@ def setupjob(config):
           mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
           optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
           optimize_pow, optimize_mu_a, optimize_mu_s, w_0_field, 
-          k_0_field,k_0_ub,k_1_ub,objective,ntime_init,pde) in paramlist:
+          k_0_field,k_0_ub,k_1_ub,objective,time_window,pde) in paramlist:
       # extract variables from iterator
       meshcmd       = meshcmditer[0]
       numproclistid = meshcmditer[1]
@@ -558,17 +553,18 @@ def setupjob(config):
       if(os.system(mc_filecmd % (ilocMCgrid,namejob))):
          raise "\n\n    error with %s %% (%d,%s)" % \
                                         (mc_filecmd,ilocMCgrid,namejob)
-      cntrlfile.set("qoi_0","optimize_w_0"     ,   optimize_w_0    )
-      cntrlfile.set("qoi_0","optimize_k_0"     ,   optimize_k_0    )
-      cntrlfile.set("qoi_0","optimize_k_1"     ,   optimize_k_1    )
-      cntrlfile.set("qoi_0","optimize_k_2"     ,   optimize_k_2    )
-      cntrlfile.set("qoi_0","optimize_k_3"     ,   optimize_k_3    )
-      cntrlfile.set("qoi_0","optimize_pow"     ,   optimize_pow    )
-      cntrlfile.set("qoi_0","optimize_mu_a"    ,   optimize_mu_a   )
-      cntrlfile.set("qoi_0","optimize_mu_s"    ,   optimize_mu_s   )
-      cntrlfile.set("qoi_0",  "objective"      ,     objective     )
-      cntrlfile.set("qoi_0","ideal_ntime_init" , "%d" % ntime_init )
-      cntrlfile.set("hp3d" ,       "pde"       ,        pde        )
+      cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )
+      cntrlfile.set("qoi_0","optimize_k_0"     ,     optimize_k_0      )
+      cntrlfile.set("qoi_0","optimize_k_1"     ,     optimize_k_1      )
+      cntrlfile.set("qoi_0","optimize_k_2"     ,     optimize_k_2      )
+      cntrlfile.set("qoi_0","optimize_k_3"     ,     optimize_k_3      )
+      cntrlfile.set("qoi_0","optimize_pow"     ,     optimize_pow      )
+      cntrlfile.set("qoi_0","optimize_mu_a"    ,     optimize_mu_a     )
+      cntrlfile.set("qoi_0","optimize_mu_s"    ,     optimize_mu_s     )
+      cntrlfile.set("qoi_0",  "objective"      ,       objective       )
+      cntrlfile.set("qoi_0","ideal_nzero_init" , "%d" % time_window[0] )
+      cntrlfile.set("qoi_0","ideal_ntime_init" , "%d" % time_window[1] )
+      cntrlfile.set("hp3d" ,       "pde"       ,          pde          )
       joblist.append([namejob,cntrlfile])
    #close script
    fcnvalfile.close; fcnvalfile.flush()

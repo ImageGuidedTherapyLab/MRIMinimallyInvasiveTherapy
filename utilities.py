@@ -68,7 +68,7 @@ def control_defaults(controlfile):
    cntrldflt.set("compexec"    ,   "vary_mesh"     ,        "0"        ) 
    cntrldflt.set("compexec"    ,  "vary_power"     ,        "0"        ) 
    cntrldflt.set("compexec"    ,  "vary_proc"      ,        "0"        ) 
-   cntrldflt.set("compexec"    ,  "vary_ntime_init",        "0"        ) 
+   cntrldflt.set("compexec"    , "vary_time_window",      "False"      ) 
    cntrldflt.set("compexec"    ,   "vary_mc_file"  ,      "False"      ) 
    cntrldflt.set("mrti"        ,"img_sizefile"     ,"mrtiimg.size"     )    
    cntrldflt.set("mrti"        ,"nzero"            ,        "0"        )    
