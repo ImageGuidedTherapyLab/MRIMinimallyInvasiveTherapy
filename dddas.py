@@ -199,13 +199,14 @@ for jobiter in JOBS:
    elif(comphost.split(".")[0] == "shamu"):
       # write a qsub file
       qsubfile=open("%s/%s/%s/%s.qsub" %(workdir,jobid,namejob,namejob) ,"w")
-      qsubfile.write("#!/bin/bash             \n"           )
-      qsubfile.write("#$ -pe mpich %d         \n" % numproc )
-      qsubfile.write("#$ -N %s                \n" % namejob )
-      qsubfile.write("#$ -cwd                 \n"           )
-      qsubfile.write("#$ -S /bin/bash         \n"           )
-      qsubfile.write("echo 'Got $NSLOTS slots'\n"           )
-      qsubfile.write("echo $TMP               \n"           )
+      qsubfile.write("#!/bin/bash              \n"           )
+      qsubfile.write("#$ -pe mpich %d          \n" % numproc )
+      qsubfile.write("#$ -N %s                 \n" % namejob )
+      qsubfile.write("#$ -cwd                  \n"           )
+      qsubfile.write("#$ -S /bin/bash          \n"           )
+      qsubfile.write("echo 'Got $NSLOTS slots' \n"           )
+      qsubfile.write("echo $TMP                \n"           )
+      qsubfile.write("export LD_LIBRARY_PATH=%s\n" %  os.getenv('LD_LIBRARY_PATH')         )
       qsubfile.write(run)
       # ensure entire file written before continuing
       qsubfile.close; qsubfile.flush() 

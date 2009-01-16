@@ -59,6 +59,7 @@ def control_defaults(controlfile):
    cntrldflt.set("compexec"    ,"vary_optimize_pow",      "False"      ) 
    cntrldflt.set("compexec"    ,"vary_optimize_mu_a",     "False"      ) 
    cntrldflt.set("compexec"    ,"vary_optimize_mu_s",     "False"      ) 
+   cntrldflt.set("compexec"    ,   "vary_k_0_ub"   ,      "False"      ) 
    cntrldflt.set("compexec"    ,   "vary_k_1_ub"   ,      "False"      ) 
    cntrldflt.set("compexec"    , "vary_k_0_field"  ,      "False"      ) 
    cntrldflt.set("compexec"    , "vary_w_0_field"  ,      "False"      ) 
