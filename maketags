@@ -1,3 +1,0 @@
-ctags --langmap=c++:+.txx --languages=c++ -R $ITK_SOURCE CImg.h
-
-

@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 2.4)
+
 # This project is designed to be built outside the Insight source tree.
 PROJECT(RealTime)
 
