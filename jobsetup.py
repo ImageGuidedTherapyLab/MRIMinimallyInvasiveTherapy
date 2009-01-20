@@ -316,7 +316,7 @@ def setupjob(config):
    if(config.getboolean("compexec","vary_objective")):
      listobjective = ["temp_control","dam_control_arr"]
    if(config.getboolean("compexec","vary_pde")):
-     listpde       = ["nonlinpennesisolaser","nonlinpennesmonte"]
+     listpde       = ["nonlinpennesisolaser","pennesisolasercooling"]
      paramstudyid.append('pde=%8s')
      paramstudvar.append('pde.split("nonlinpennes").pop()')
    if(config.getboolean("compexec","vary_w_0_field")):
