@@ -46,5 +46,3 @@ TARGET_LINK_LIBRARIES(DicomSeriesCopyHeader ITKCommon ITKIO)
 ADD_EXECUTABLE(SubsampleNoFilter SubsampleNoFilter.cxx )
 TARGET_LINK_LIBRARIES(SubsampleNoFilter  ITKBasicFilters ITKIO)
 
-ADD_EXECUTABLE(DicomReadImagRealWriteTemp DicomReadImagRealWriteTemp.cxx )
-TARGET_LINK_LIBRARIES(DicomReadImagRealWriteTemp ITKIO)
