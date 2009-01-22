@@ -98,7 +98,7 @@ const unsigned int          Dimension = 3;
 const double                       pi = 3.1415926535897931;
 // useful typedefs
 typedef double                                                 InputPixelType;
-typedef unsigned char                                          OutputPixelType;
+typedef char                                                  OutputPixelType;
 typedef itk::Image<  InputPixelType, Dimension >               InputImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
 typedef itk::ImageSeriesReader<      InputImageType >              ReaderType;
@@ -110,28 +110,31 @@ typedef itk::ImageSliceIteratorWithIndex< InputImageType > BufferIteratorType;
 typedef itk::ImageSliceIteratorWithIndex<OutputImageType > OutputIteratorType;
 
 // subroutine to generate dicom filenames
-std::vector<std::string>   RealTimeGenerateFileNames(const char * ExamPath,
-                                                     int DirId, 
-                                                     int istep, int nslice)
+void RealTimeGenerateFileNames(const char * ExamPath, const int DirId, 
+                               const int istep, const int nslice,
+                         std::vector < std::vector < std::string > > &filenames)
 {
-   std::vector<std::string>   filenames(2*nslice);
-   for( int jjj = 0 ; jjj < 2*nslice ; jjj++)
-    {
-       std::ostringstream file_name;
-       // hard code for now
-       file_name << ExamPath << "/s" << DirId << "/i" 
-                             <<   DirId     + 2*nslice*istep + (jjj+1)
-                             << ".MRDC."<<    2*nslice*istep + (jjj+1) ;
-       filenames[jjj] = file_name.str();
-    }
-   return filenames;
+   // filenames[0][jjj] ==> real images 
+   // filenames[1][jjj] ==> imaginary images
+   for( int iii = 0 ; iii < 2 ; iii++)
+     for( int jjj = 0 ; jjj < nslice ; jjj++)
+      {
+         std::ostringstream file_name;
+         // hard code for now
+         file_name << ExamPath << "/s" << DirId << "/i" 
+                   <<   DirId     + 2*nslice*istep + (2*jjj+1) + iii 
+                   << ".MRDC."<<    2*nslice*istep + (2*jjj+1) + iii ;
+         filenames[iii][jjj] = file_name.str();
+      }
+   return;
 }
 // subroutine to read the dicom data in real-time
-InputImageType::ConstPointer GetImageData(ReaderType::Pointer  reader ,
-                                     std::vector<std::string> &filenames )
+
+void GetImageData(ReaderType::Pointer  reader ,
+                  std::vector<std::string>  &filenames ,
+                  InputImageType::ConstPointer  &Image )
 {
   bool DataNotRead = true;
-  InputImageType::ConstPointer Image;
   while(DataNotRead)
     {
      std::cout << std::endl ; 
@@ -154,7 +157,7 @@ InputImageType::ConstPointer GetImageData(ReaderType::Pointer  reader ,
        sleep(1);
        }
     }
-  return Image; 
+  return ; 
 }
 // write an Ini File containg dicom header info 
 void WriteIni( const char * OutputDir,
@@ -261,6 +264,7 @@ int main( int argc, char* argv[] )
   int ntime;    
   int nslice;   
   double alpha,maxdiff; 
+  bool Debug = false ;  // debugging...
   try
   {  
      DirId   = boost::lexical_cast<int>(   argv[2]);
@@ -280,6 +284,11 @@ int main( int argc, char* argv[] )
      std::cout << e.what() << std::endl;
      return EXIT_FAILURE;
   }
+
+  // setup data structures to contain a list of file names for a single time 
+  // instance
+  std::vector< std::vector<std::string> > 
+       filenames( 2, std::vector< std::string >::vector(nslice,"") );
 
   // make sure the output directory exist, using the cross
   // platform tools: itksys::SystemTools. In this case we select to create
@@ -302,30 +311,53 @@ int main( int argc, char* argv[] )
   //  Software Guide : EndLatex 
 
   // get base image first and prepare temperature image
-  ReaderType::Pointer       base_reader    = ReaderType::New();
-  ImageIOType::Pointer      base_gdcmIO    = ImageIOType::New();
   InputImageType::Pointer   baseImage = InputImageType::New();
   InputImageType::Pointer   net_Image = InputImageType::New();
   InputImageType::Pointer   filtImage = InputImageType::New();
+
+  // Software Guide : BeginLatex
+  // We construct one instance of the series reader object. Set the DICOM
+  // image IO object to be use with it, and set the list of filenames to
+  // read.
+  // Software Guide : EndLatex
+  
+  // Software Guide : BeginCodeSnippet
+  ReaderType::Pointer  reader = ReaderType::New();
+  ImageIOType::Pointer gdcmIO = ImageIOType::New();
+  reader->SetImageIO( gdcmIO );
+   
+
+  if(Debug)
+    {
+      baseImage->DebugOn();
+      net_Image->DebugOn();
+      filtImage->DebugOn();
+    }
+
   // dimensions for all images
   InputImageType::SpacingType sp;
   InputImageType::PointType orgn;
   {
-    // generate list of file names and get image data
-    std::vector<std::string> filenames =
-                             RealTimeGenerateFileNames(ExamPath,DirId,0,nslice);
-    base_reader->SetImageIO(  base_gdcmIO );
-    base_reader->SetFileNames(  filenames );
-    InputImageType::ConstPointer inputImage=GetImageData(base_reader,filenames);
+    // generate list of file names
+    RealTimeGenerateFileNames(ExamPath,DirId,0,nslice,filenames);
+
+    // get real images
+    reader->SetFileNames( filenames[0] );
+    InputImageType::ConstPointer realImage;
+    GetImageData(reader,filenames[0],realImage);
+
+    // get imaginary images
+    reader->SetFileNames( filenames[1] );
+    InputImageType::ConstPointer imagImage;
+    GetImageData(reader,filenames[1],imagImage);
 
     // allocate base phase image and output image buffer
     InputImageType::RegionType region;
     InputImageType::RegionType::SizeType size;
     InputImageType::RegionType::IndexType index;
-    InputImageType::RegionType requestedRegion=inputImage->GetRequestedRegion();
+    InputImageType::RegionType requestedRegion=realImage->GetRequestedRegion();
     index = requestedRegion.GetIndex();
     size  = requestedRegion.GetSize();
-    size[2]  = nslice ; 
     region.SetSize( size );
     region.SetIndex( index );
     baseImage->SetRegions( region );
@@ -336,12 +368,12 @@ int main( int argc, char* argv[] )
     filtImage->Allocate();
 
     // scale image to meters
-    sp = 0.001 * inputImage->GetSpacing();
+    sp = 0.001 * realImage->GetSpacing();
     std::cout << "Spacing = ";
     std::cout << sp[0] << ", " << sp[1] << ", " << sp[2] << std::endl;
   
     // scale image to meters
-    const InputImageType::PointType& orgn_mm = inputImage->GetOrigin();
+    const InputImageType::PointType& orgn_mm = realImage->GetOrigin();
     orgn[0] = 0.001 * orgn_mm[0];
     orgn[1] = 0.001 * orgn_mm[1];
     orgn[2] = 0.001 * orgn_mm[2];
@@ -352,8 +384,8 @@ int main( int argc, char* argv[] )
     WriteIni(OutputDir,orgn,sp,size);
 
     // setup real, imaginary, base phase, and temperature map iterators
-    InputIteratorType    realIt(  inputImage, inputImage->GetRequestedRegion());
-    InputIteratorType    imagIt(  inputImage, inputImage->GetRequestedRegion());
+    InputIteratorType    realIt(   realImage,  realImage->GetRequestedRegion());
+    InputIteratorType    imagIt(   imagImage,  imagImage->GetRequestedRegion());
     BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
     BufferIteratorType   net_It(   net_Image,  net_Image->GetRequestedRegion());
     BufferIteratorType   filtIt(   filtImage,  filtImage->GetRequestedRegion());
@@ -365,10 +397,9 @@ int main( int argc, char* argv[] )
     filtIt.SetFirstDirection(  0 );   filtIt.SetSecondDirection( 1 );
    
     // Software Guide : EndCodeSnippet 
+    // set iterators to the beginning
     realIt.GoToBegin();
-    // imaginary image is after the real image
-    imagIt.GoToBegin(); imagIt.NextSlice(); // n+1
-    // set base and output image to the beginnning
+    imagIt.GoToBegin(); 
     baseIt.GoToBegin();
     net_It.GoToBegin();
     filtIt.GoToBegin();
@@ -395,10 +426,9 @@ int main( int argc, char* argv[] )
           net_It.NextLine();
           filtIt.NextLine();
         }
-      // skip two on the input image
-      realIt.NextSlice(); realIt.NextSlice();
-      imagIt.NextSlice(); imagIt.NextSlice();
-      // skip one on the base and output image
+        // get next slice
+        realIt.NextSlice(); 
+        imagIt.NextSlice(); 
         baseIt.NextSlice();
         net_It.NextSlice();
         filtIt.NextSlice();
@@ -413,21 +443,7 @@ int main( int argc, char* argv[] )
   // loop over time instances
   for( int iii = 1 ; iii <= ntime ; iii++)
    {
-    std::vector<std::string> filenames =
-                          RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice);
-   
-    // Software Guide : BeginLatex
-    // We construct one instance of the series reader object. Set the DICOM
-    // image IO object to be use with it, and set the list of filenames to
-    // read.
-    // Software Guide : EndLatex
-    
-    // Software Guide : BeginCodeSnippet
-    ReaderType::Pointer  reader = ReaderType::New();
-    ImageIOType::Pointer gdcmIO = ImageIOType::New();
-    reader->SetImageIO( gdcmIO );
-    reader->SetFileNames( filenames );
-    // Software Guide : EndCodeSnippet
+    RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice,filenames);
    
     // Software Guide : BeginLatex
     // 
@@ -438,7 +454,15 @@ int main( int argc, char* argv[] )
     //
     // Software Guide : EndLatex
    
-    InputImageType::ConstPointer inputImage = GetImageData(reader,filenames);
+    // get real images
+    reader->SetFileNames( filenames[0] );
+    InputImageType::ConstPointer realImage;
+    GetImageData(reader,filenames[0],realImage);
+
+    // get imaginary images
+    reader->SetFileNames( filenames[1] );
+    InputImageType::ConstPointer imagImage;
+    GetImageData(reader,filenames[1],imagImage);
  
     // scratch storage for header value
     std::string value; 
@@ -499,8 +523,8 @@ int main( int argc, char* argv[] )
     // to walk the same linear path through a slice.  Remember that the
     // \emph{second} direction of the slice iterator defines the direction that
     // linear iteration walks within a slice
-    InputIteratorType    realIt(  inputImage, inputImage->GetRequestedRegion());
-    InputIteratorType    imagIt(  inputImage, inputImage->GetRequestedRegion());
+    InputIteratorType    realIt(   realImage,  realImage->GetRequestedRegion());
+    InputIteratorType    imagIt(   imagImage,  imagImage->GetRequestedRegion());
     BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
     BufferIteratorType   net_It(   net_Image,  net_Image->GetRequestedRegion());
    
@@ -510,10 +534,9 @@ int main( int argc, char* argv[] )
     net_It.SetFirstDirection(  0 );   net_It.SetSecondDirection( 1 );
    
     // Software Guide : EndCodeSnippet 
+    // set iterators to the beginning
     realIt.GoToBegin();
-    // imaginary image is after the real image
-    imagIt.GoToBegin(); imagIt.NextSlice(); // n+1
-    // set base and output image to the beginnning
+    imagIt.GoToBegin(); 
     baseIt.GoToBegin();
     net_It.GoToBegin();
     // compute net phase difference
@@ -538,10 +561,9 @@ int main( int argc, char* argv[] )
           baseIt.NextLine();
           net_It.NextLine();
         }
-      // skip two on the input image
-      realIt.NextSlice(); realIt.NextSlice();
-      imagIt.NextSlice(); imagIt.NextSlice();
-      // skip one on the base and output image
+      // get next slice
+      realIt.NextSlice(); 
+      imagIt.NextSlice(); 
       net_It.NextSlice();
       baseIt.NextSlice();
       }
@@ -551,36 +573,37 @@ int main( int argc, char* argv[] )
     unfiltered_filename << OutputDir <<"/unfiltered"<< iii <<".mha" ;
     WriteImage(net_Image , net_It, unfiltered_filename,sp,orgn);
 
-//    // write filtered imaged
-//    BufferIteratorType   filtIt(   filtImage,  filtImage->GetRequestedRegion());
-//    filtIt.SetFirstDirection(  0 );   filtIt.SetSecondDirection( 1 );
-//    filtIt.GoToBegin();
-//    net_It.GoToBegin();
-//    
-//    while( !net_It.IsAtEnd() )
-//      {
-//      while ( !net_It.IsAtEndOfSlice() )
-//        {
-//        while ( !net_It.IsAtEndOfLine() )
-//          {
-//          // only set the temperature if it has changed within a physically
-//          // meaningful value. eventually, maxdiff should be predicted from the
-//          // kalman filter
-//          if ( std::abs( filtIt.Get() - net_It.Get() ) < maxdiff ) filtIt.Set( net_It.Get() );
-//          ++net_It;
-//          ++filtIt;
-//          }
-//          filtIt.NextLine();
-//          net_It.NextLine();
-//        }
-//      net_It.NextSlice();
-//      filtIt.NextSlice();
-//      }
-//    // output filtered tmap
-//    std::ostringstream filtered_filename;
-//    filtered_filename << OutputDir <<"/filtered"<< iii <<".mha" ;
-//    WriteImage(filtImage , filtIt, filtered_filename,sp,orgn);
-//
+    // write filtered imaged
+    BufferIteratorType   filtIt(   filtImage,  filtImage->GetRequestedRegion());
+    filtIt.SetFirstDirection(  0 );   filtIt.SetSecondDirection( 1 );
+    filtIt.GoToBegin();
+    net_It.GoToBegin();
+    
+    while( !net_It.IsAtEnd() )
+      {
+      while ( !net_It.IsAtEndOfSlice() )
+        {
+        while ( !net_It.IsAtEndOfLine() )
+          {
+          // only set the temperature if it has changed within a physically
+          // meaningful value. eventually, maxdiff should be predicted from the
+          // kalman filter
+          if ( std::abs( filtIt.Get() - net_It.Get() ) < maxdiff ) 
+                                               filtIt.Set( net_It.Get() );
+          ++net_It;
+          ++filtIt;
+          }
+          filtIt.NextLine();
+          net_It.NextLine();
+        }
+      net_It.NextSlice();
+      filtIt.NextSlice();
+      }
+    // output filtered tmap
+    std::ostringstream filtered_filename;
+    filtered_filename << OutputDir <<"/filtered"<< iii <<".mha" ;
+    WriteImage(filtImage , filtIt, filtered_filename,sp,orgn);
+
    } // end loop over time instances
      
   return EXIT_SUCCESS;
