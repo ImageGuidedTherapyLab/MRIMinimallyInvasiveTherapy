@@ -7,7 +7,7 @@ all: Makefile
 Makefile: CMakeLists.txt
 	cmake -DITK_DIR=$(ITK_DIR) .
 tags:
-	ctags --langmap=c++:+.txx --languages=c++ -R $(ITK_SOURCE) CImg.h *
+	ctags --langmap=c++:+.txx --languages=c,c++ -R $(PETSC_DIR) $(ITK_SOURCE) CImg.h *
 
 ITK_CXXFLAGS=-ftemplate-depth-50 
 # taken from cmake with verbose makefile
