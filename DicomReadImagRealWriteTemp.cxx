@@ -18,7 +18,6 @@
 #pragma warning ( disable : 4786 )
 #endif
 
-
 //  Software Guide : BeginLatex
 //
 //  This example illustrates how to read a DICOM series into a volume and then
@@ -78,6 +77,7 @@
 #include <sstream>
 #include <fstream>
 #include <string>
+#include "itkExtractImageFilter.h"
 #include "itkGDCMImageIO.h"
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImageSeriesReader.h"
@@ -94,6 +94,9 @@
 #include "petscda.h"
 #include "petscsys.h"
 
+# define OSSRealzeroright(o,v,p,d)  (o).width(v);  (o).precision(p); (o).fill('0'); (o) << std::right << (d)
+
+
 
 // globals 
 static char help[] = "Tests DAGetInterpolation for nonuniform DA coordinates.\n\n";
@@ -101,9 +104,10 @@ const unsigned int          Dimension = 3;
 const double                       pi = 3.1415926535897931;
 // useful typedefs
 typedef double                                                 InputPixelType;
-typedef char                                                  OutputPixelType;
+typedef float                                                 OutputPixelType;
 typedef itk::Image<  InputPixelType, Dimension >               InputImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
+typedef itk::ExtractImageFilter< InputImageType, InputImageType>   FilterType;
 typedef itk::ImageSeriesReader<      InputImageType >              ReaderType;
 typedef itk::ImageFileWriter<       OutputImageType >              WriterType;
 typedef itk::GDCMImageIO                                          ImageIOType;
@@ -115,6 +119,7 @@ typedef itk::ImageSliceIteratorWithIndex<OutputImageType > OutputIteratorType;
 // subroutine to generate dicom filenames
 void RealTimeGenerateFileNames(const char * ExamPath, const int DirId, 
                                const int istep, const int nslice,
+                               const int necho, const int noffset,
                          std::vector < std::vector < std::string > > &filenames)
 {
    // filenames[0][jjj] ==> real images 
@@ -133,9 +138,8 @@ void RealTimeGenerateFileNames(const char * ExamPath, const int DirId,
 }
 // subroutine to read the dicom data in real-time
 
-void GetImageData(ReaderType::Pointer  reader ,
-                  std::vector<std::string>  &filenames ,
-                  InputImageType::ConstPointer  &Image )
+template<class T>
+void GetImageData(T ITKPointer, std::vector<std::string>  &filenames )
 {
   bool DataNotRead = true;
   while(DataNotRead)
@@ -150,9 +154,8 @@ void GetImageData(ReaderType::Pointer  reader ,
       }
      try
        {
-       reader->Update();
+       ITKPointer->Update();
        DataNotRead = false;
-       Image = reader->GetOutput();
        }
      catch (itk::ExceptionObject &excp)
        {
@@ -250,87 +253,54 @@ void WriteImage(InputImageType::Pointer Image, BufferIteratorType imageIt,
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "SetCoordinates3d"
-PetscErrorCode SetCoordinates3d(DA da)
-{
-  PetscErrorCode ierr;
-  PetscInt       i,j,mstart,m,nstart,n,pstart,p,k;
-  Vec            gc,global;
-  DACoor3d       ***coors;
-  DA             cda;
-
-  PetscFunctionBegin;
-  ierr = DASetUniformCoordinates(da,0.0,1.0,0.0,1.0,0.0,1.0);CHKERRQ(ierr);
-  ierr = DAGetCoordinateDA(da,&cda);CHKERRQ(ierr);
-  ierr = DAGetGhostedCoordinates(da,&gc);CHKERRQ(ierr);
-  ierr = DAVecGetArray(cda,gc,&coors);CHKERRQ(ierr);
-  ierr = DAGetCorners(cda,&mstart,&nstart,&pstart,&m,&n,&p);CHKERRQ(ierr);
-  for (i=mstart; i<mstart+m; i++) {
-    for (j=nstart; j<nstart+n; j++) {
-      for (k=pstart; k<pstart+p; k++) {
-	if (i % 2) {
-	  coors[k][j][i].x = coors[k][j][i-1].x + .1*(coors[k][j][i+1].x - coors[k][j][i-1].x);
-	}
-	if (j % 2) {
-	  coors[k][j][i].y = coors[k][j-1][i].y + .3*(coors[k][j+1][i].y - coors[k][j-1][i].y);
-	}
-	if (k % 2) {
-	  coors[k][j][i].z = coors[k-1][j][i].z + .4*(coors[k+1][j][i].z - coors[k-1][j][i].z);
-	}
-      }
-    }
-  }
-  ierr = DAVecRestoreArray(cda,gc,&coors);CHKERRQ(ierr);
-  ierr = DAGetCoordinates(da,&global);CHKERRQ(ierr);
-  ierr = DALocalToGlobal(cda,gc,INSERT_VALUES,global);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
+#define __FUNCT__ "main"
 // main driver routine
 int main( int argc, char* argv[] )
 {
   PetscErrorCode ierr;
-  DA             dac,daf;
-  DAPeriodicType ptype = DA_NONPERIODIC;
-  DAStencilType  stype = DA_STENCIL_BOX;
-  Mat            A;
+  PetscInt       rank;
 
   /* Initialize Petsc */
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr); 
+  PetscFunctionBegin;
+
+  ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank); CHKERRQ(ierr);
+
 
   /* Read options */
   char         ExamPath[PETSC_MAX_PATH_LEN],OutputDir[PETSC_MAX_PATH_LEN];
   int DirId=0;    
   int ntime=1;    
+  int noffset=0;    
   int necho=1;   
   int nslice=5;   
-  PetscScalar alpha = -0.097,maxdiff=15.0; 
+  PetscScalar alpha = -0.0097,maxdiff=15.0; 
   PetscTruth  flg,Debug=PETSC_FALSE;//debugging...
-  try
-  {  
-     ierr = PetscOptionsGetString(PETSC_NULL,"-ExamPath",ExamPath,256,&flg);CHKERRQ(ierr);
-     ierr = PetscOptionsGetString(PETSC_NULL,"-OutputDir",OutputDir,256,&flg);CHKERRQ(ierr);
-     ierr = PetscOptionsGetInt(PETSC_NULL,"-DirId",&DirId,PETSC_NULL);CHKERRQ(ierr);
-     ierr = PetscOptionsGetInt(PETSC_NULL,"-ntime",&ntime,PETSC_NULL);CHKERRQ(ierr);
-     ierr = PetscOptionsGetInt(PETSC_NULL,"-necho",&necho,PETSC_NULL);CHKERRQ(ierr);
-     ierr = PetscOptionsGetInt(PETSC_NULL,"-nslice",&nslice,PETSC_NULL);CHKERRQ(ierr);
-     ierr = PetscOptionsGetScalar(PETSC_NULL,"-alpha",&alpha,PETSC_NULL);CHKERRQ(ierr);
-     ierr = PetscOptionsGetScalar(PETSC_NULL,"-maxdiff",&maxdiff,PETSC_NULL);CHKERRQ(ierr);
-     info = PetscOptionsGetTruth(PETSC_NULL,"-debug",&Debug,&flg);
-  }
-  catch(const std::exception& e) //catch bad lexical cast
+  ierr = PetscOptionsGetString(PETSC_NULL,"-ExamPath",ExamPath,256,&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsGetString(PETSC_NULL,"-OutputDir",OutputDir,256,&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-DirId",&DirId,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-ntime",&ntime,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-necho",&necho,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-noffset",&noffset,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-nslice",&nslice,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetScalar(PETSC_NULL,"-alpha",&alpha,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetScalar(PETSC_NULL,"-maxdiff",&maxdiff,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetTruth(PETSC_NULL,"-debug",&Debug,&flg);
+ 
+  //error check
+  if( !DirId )
   {
-     std::cout << "Error getting Command Line Values:\n"
-     std::cerr << "Usage: " << argv[0]                <<  std::endl ;
-     std::cerr << "-ExamPath Directory to ExamPath"   <<  std::endl ;
-     std::cerr << "-DirId     Scan # "                <<  std::endl ;
-     std::cerr << "-OutputDir output directory # "    <<  std::endl ;
-     std::cerr << "-ntime     Number of Time Points " <<  std::endl ;
-     std::cerr << "-nslice    Number of slices "      <<  std::endl ;
-     std::cerr << "-alpha     Alpha (ppm/degC) "      <<  std::endl ;
-     std::cerr << "-maxdiff   filtering parameter  "  <<  std::endl ;
-     std::cerr << "-echotime  EchoTime (ms)        "  <<  std::endl ;
-     std::cerr << "-frequency ImagingFreqency (MHz) " <<  std::endl ;
+     std::cerr << "Error getting Command Line Values:"   <<              std::endl ; 
+     std::cerr << "Usage: " << argv[0]                   <<              std::endl ;
+     std::cerr << "-ExamPath  Directory to ExamPath "    << ExamPath  << std::endl ;
+     std::cerr << "-DirId     Scan # "                   << DirId     << std::endl ;
+     std::cerr << "-OutputDir output directory # "       << OutputDir << std::endl ;
+     std::cerr << "-ntime     Number of Time Points "    << ntime     << std::endl ;
+     std::cerr << "-noffset   Time offset to begin with" << noffset   << std::endl ;
+     std::cerr << "-necho     Number of echo Times  "    << necho     << std::endl ;
+     std::cerr << "-nslice    Number of slices "         << nslice    << std::endl ;
+     std::cerr << "-alpha     Alpha (ppm/degC) "         << alpha     << std::endl ;
+     std::cerr << "-maxdiff   filtering parameter  "     << maxdiff   << std::endl ;
      std::cerr << "EchoTime and ImagingFrequency Optional\n" 
               << " but may be input in case of any errors\n" ;
     return EXIT_FAILURE;
@@ -339,7 +309,7 @@ int main( int argc, char* argv[] )
   // setup data structures to contain a list of file names for a single time 
   // instance
   std::vector< std::vector<std::string> > 
-       filenames( 2, std::vector< std::string >::vector(nslice,"") );
+       filenames( 2 * necho , std::vector< std::string >::vector(nslice,"") );
 
   // make sure the output directory exist, using the cross
   // platform tools: itksys::SystemTools. In this case we select to create
@@ -366,6 +336,11 @@ int main( int argc, char* argv[] )
   InputImageType::Pointer   net_Image = InputImageType::New();
   InputImageType::Pointer   filtImage = InputImageType::New();
 
+  // image pointers
+  std::vector< InputImageType::ConstPointer > realImage; realImage.resize(necho);
+  std::vector< InputImageType::ConstPointer > imagImage; imagImage.resize(necho);
+  // Software Guide : EndCodeSnippet
+
   // Software Guide : BeginLatex
   // We construct one instance of the series reader object. Set the DICOM
   // image IO object to be use with it, and set the list of filenames to
@@ -387,55 +362,127 @@ int main( int argc, char* argv[] )
   // dimensions for all images
   InputImageType::SpacingType sp;
   InputImageType::PointType orgn;
-  {
-    // generate list of file names
-    RealTimeGenerateFileNames(ExamPath,DirId,0,nslice,filenames);
+ 
+  // generate first set of images filenames
+  RealTimeGenerateFileNames(ExamPath,DirId,0,nslice,necho,noffset,filenames);
 
-    // get real images
-    reader->SetFileNames( filenames[0] );
-    InputImageType::ConstPointer realImage;
-    GetImageData(reader,filenames[0],realImage);
+  // only need to read in the first set to get the header info
+  reader->SetFileNames(filenames[0] );
+  GetImageData(reader, filenames[0]);
+  realImage[0]=reader->GetOutput();
 
-    // get imaginary images
-    reader->SetFileNames( filenames[1] );
-    InputImageType::ConstPointer imagImage;
-    GetImageData(reader,filenames[1],imagImage);
-
-    // allocate base phase image and output image buffer
-    InputImageType::RegionType region;
-    InputImageType::RegionType::SizeType size;
-    InputImageType::RegionType::IndexType index;
-    InputImageType::RegionType requestedRegion=realImage->GetRequestedRegion();
-    index = requestedRegion.GetIndex();
-    size  = requestedRegion.GetSize();
-    region.SetSize( size );
-    region.SetIndex( index );
-    baseImage->SetRegions( region );
-    net_Image->SetRegions( region );
-    filtImage->SetRegions( region );
-    baseImage->Allocate();
-    net_Image->Allocate();
-    filtImage->Allocate();
-
-    // scale image to meters
-    sp = 0.001 * realImage->GetSpacing();
-    std::cout << "Spacing = ";
-    std::cout << sp[0] << ", " << sp[1] << ", " << sp[2] << std::endl;
+  // scale image to meters
+  sp = 0.001 * realImage[0]->GetSpacing();
+  std::cout << "Spacing = ";
+  std::cout << sp[0] << ", " << sp[1] << ", " << sp[2] << std::endl;
   
-    // scale image to meters
-    const InputImageType::PointType& orgn_mm = realImage->GetOrigin();
-    orgn[0] = 0.001 * orgn_mm[0];
-    orgn[1] = 0.001 * orgn_mm[1];
-    orgn[2] = 0.001 * orgn_mm[2];
-    std::cout << "Origin = ";
-    std::cout << orgn[0] << ", " << orgn[1] << ", " << orgn[2] << std::endl;
+  // scale image to meters
+  const InputImageType::PointType& orgn_mm = realImage[0]->GetOrigin();
+  orgn[0] = 0.001 * orgn_mm[0];
+  orgn[1] = 0.001 * orgn_mm[1];
+  orgn[2] = 0.001 * orgn_mm[2];
+  std::cout << "Origin = ";
+  std::cout << orgn[0] << ", " << orgn[1] << ", " << orgn[2] << std::endl;
 
-    // write out header info
-    WriteIni(OutputDir,orgn,sp,size);
+  // write out header info
+  InputImageType::RegionType::SizeType
+                              size=realImage[0]->GetRequestedRegion().GetSize();
 
+  WriteIni(OutputDir,orgn,sp,size);
+
+  // processor bounding box
+  PetscInt ProcStart[3], ProcStartGhost[3];
+  PetscInt ProcWidth[3], ProcWidthGhost[3];
+  InputImageType::RegionType::IndexType proc_start, proc_start_ghost;
+  InputImageType::RegionType::SizeType  proc_width, proc_width_ghost;
+
+  /* Create distributed array and get vectors:
+       use -da_view to print out info about the DA */
+  DA             dac;
+  DAPeriodicType ptype = DA_NONPERIODIC;
+  DAStencilType  stype = DA_STENCIL_BOX;
+  ierr = DACreate3d(PETSC_COMM_WORLD,ptype,stype, size[0], size[1], size[2],
+                    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,1,1,
+                    PETSC_NULL,PETSC_NULL,PETSC_NULL,&dac);CHKERRQ(ierr);
+  ierr = DAGetCorners(dac,&ProcStart[0],&ProcStart[1],&ProcStart[2], 
+                          &ProcWidth[0],&ProcWidth[1],&ProcWidth[2]); 
+  CHKERRQ(ierr);
+  proc_start[0]=ProcStart[0]; proc_width[0]=ProcWidth[0];
+  proc_start[1]=ProcStart[1]; proc_width[1]=ProcWidth[1];
+  proc_start[2]=ProcStart[2]; proc_width[2]=ProcWidth[2];
+  
+  ierr = DAGetGhostCorners(dac, 
+          &ProcStartGhost[0],&ProcStartGhost[1],&ProcStartGhost[2], 
+          &ProcWidthGhost[0],&ProcWidthGhost[1],&ProcWidthGhost[2] ); 
+  CHKERRQ(ierr);
+  proc_start_ghost[0]=ProcStartGhost[0]; proc_width_ghost[0]=ProcWidthGhost[0];
+  proc_start_ghost[1]=ProcStartGhost[1]; proc_width_ghost[1]=ProcWidthGhost[1];
+  proc_start_ghost[2]=ProcStartGhost[2]; proc_width_ghost[2]=ProcWidthGhost[2];
+  
+  ierr = DASetUniformCoordinates(dac,orgn[0],orgn[0]+sp[0]*size[0],
+                                     orgn[1],orgn[1]+sp[1]*size[1],
+                                     orgn[2],orgn[2]+sp[2]*size[2] );CHKERRQ(ierr);
+
+  //  Software Guide : BeginLatex
+  //  
+  //  an \doxygen{ImageRegion} object is created and initialized with
+  //  the start and size we just prepared using the slice information.
+  //
+  //  Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  InputImageType::RegionType procRegion;
+  procRegion.SetSize(  proc_width  );
+  procRegion.SetIndex( proc_start );
+  // Software Guide : EndCodeSnippet
+
+  //  The ExtractImageFilter type is instantiated using the input and
+  //  output image types. A filter object is created with the New()
+  //  method and assigned to a SmartPointer.
+  std::vector< FilterType::Pointer > realfilter(necho,FilterType::New());
+  std::vector< FilterType::Pointer > imagfilter(necho,FilterType::New());
+
+  //  Software Guide : BeginLatex
+  //  Then the region is passed to the filter using the
+  //  SetExtractionRegion() method.
+  //
+  //  \index{itk::ExtractImageFilter!SetExtractionRegion()}
+  //  Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  for (int jjj = 0 ; jjj < necho ; jjj ++ )
+    {
+      realfilter[jjj]->SetExtractionRegion( procRegion );
+      imagfilter[jjj]->SetExtractionRegion( procRegion );
+      realfilter[jjj]->SetInput( reader->GetOutput() );
+      imagfilter[jjj]->SetInput( reader->GetOutput() );
+    }
+  // Software Guide : EndCodeSnippet
+
+  // allocate base phase image and output image buffer from first set
+  baseImage->SetRegions( procRegion );
+  net_Image->SetRegions( procRegion );
+  filtImage->SetRegions( procRegion );
+  baseImage->Allocate();
+  net_Image->Allocate();
+  filtImage->Allocate();
+
+  {
+    // get images
+    for (int jjj = 0 ; jjj < necho ; jjj ++ )
+      {
+       // get real images
+       reader->SetFileNames(filenames[2*jjj  ] );
+       GetImageData(realfilter[jjj], filenames[2*jjj  ] );
+       realImage[jjj] = realfilter[jjj]->GetOutput() ;
+       // get imaginary images
+       reader->SetFileNames(filenames[2*jjj+1] );
+       GetImageData(imagfilter[jjj], filenames[2*jjj+1] );
+       imagImage[jjj] = imagfilter[jjj]->GetOutput() ;
+      }
     // setup real, imaginary, base phase, and temperature map iterators
-    InputIteratorType    realIt(   realImage,  realImage->GetRequestedRegion());
-    InputIteratorType    imagIt(   imagImage,  imagImage->GetRequestedRegion());
+    InputIteratorType    realIt(   realImage[0],  realImage[0]->GetRequestedRegion());
+    InputIteratorType    imagIt(   imagImage[0],  imagImage[0]->GetRequestedRegion());
     BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
     BufferIteratorType   net_It(   net_Image,  net_Image->GetRequestedRegion());
     BufferIteratorType   filtIt(   filtImage,  filtImage->GetRequestedRegion());
@@ -486,23 +533,34 @@ int main( int argc, char* argv[] )
     // output base phase image as a place holder
     std::ostringstream basephase_filename;
     // output file
-    basephase_filename << OutputDir <<"/tmap."<< 0 <<".mha" ;
+    basephase_filename << OutputDir <<"/tmap";
+    OSSRealzeroright(basephase_filename,4,0,0);
+    basephase_filename << "."<< rank <<".mha" ;
+
     WriteImage(baseImage,baseIt,basephase_filename,sp,orgn);
 
   }
-
-  /* Create distributed array and get vectors */
-  ierr = DACreate3d(PETSC_COMM_WORLD,ptype,stype,M,N,P,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,1,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&dac);CHKERRQ(ierr);
-
-  ierr = DASetUniformCoordinates(dac,0.0,1.0,0.0,1.0,0.0,1.0);CHKERRQ(ierr);
-  ierr = SetCoordinates3d(daf);CHKERRQ(ierr);
 
   // read input data
   // loop over time instances
   for( int iii = 1 ; iii <= ntime ; iii++)
    {
-    RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice,filenames);
-   
+    // generate list of file names
+    RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice,necho,noffset,filenames);
+
+    // get images
+    for (int jjj = 0 ; jjj < necho ; jjj ++ )
+      {
+       // get real images
+       reader->SetFileNames(filenames[2*jjj  ] );
+       GetImageData(realfilter[jjj], filenames[2*jjj  ] );
+       realImage[jjj] = realfilter[jjj]->GetOutput() ;
+       // get imaginary images
+       reader->SetFileNames(filenames[2*jjj+1] );
+       GetImageData(imagfilter[jjj], filenames[2*jjj+1] );
+       imagImage[jjj] = imagfilter[jjj]->GetOutput() ;
+      }
+
     // Software Guide : BeginLatex
     // 
     // We can trigger the reading process by calling the \code{Update()} method
@@ -512,16 +570,6 @@ int main( int argc, char* argv[] )
     //
     // Software Guide : EndLatex
    
-    // get real images
-    reader->SetFileNames( filenames[0] );
-    InputImageType::ConstPointer realImage;
-    GetImageData(reader,filenames[0],realImage);
-
-    // get imaginary images
-    reader->SetFileNames( filenames[1] );
-    InputImageType::ConstPointer imagImage;
-    GetImageData(reader,filenames[1],imagImage);
- 
     // scratch storage for header value
     std::string value; 
     // Get Echo Time 
@@ -537,8 +585,9 @@ int main( int argc, char* argv[] )
        std::cout << "Error getting echo time " << " (" << echotimekey << ")\n";
        std::cout << "value returned is "<<value << "\n";
        std::cout << e.what() << std::endl;
-       std::cout << "using value from command line "<< argv[8] << "\n";
-       echotime = boost::lexical_cast<double>(argv[8]);
+       ierr = PetscOptionsGetScalar(PETSC_NULL,"-echotime",&echotime,PETSC_NULL);
+       CHKERRQ(ierr);
+       std::cout << "using value from command line "<< echotime << "\n";
     }
     std::string imagfreqkey = "0018|0084";
     double imagfreq;
@@ -554,8 +603,9 @@ int main( int argc, char* argv[] )
        std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
        std::cout << "value returned is "<<value << "\n";
        std::cout << e.what() << std::endl;
-       std::cout << "using value from command line "<< argv[9] << "\n";
-       imagfreq = boost::lexical_cast<double>(argv[9]);
+       ierr = PetscOptionsGetScalar(PETSC_NULL,"-imagfreq",&imagfreq,PETSC_NULL);
+       CHKERRQ(ierr);
+       std::cout << "using value from command line "<< imagfreq << "\n";
     }
     // misc info
     // echo data
@@ -581,10 +631,10 @@ int main( int argc, char* argv[] )
     // to walk the same linear path through a slice.  Remember that the
     // \emph{second} direction of the slice iterator defines the direction that
     // linear iteration walks within a slice
-    InputIteratorType    realIt(   realImage,  realImage->GetRequestedRegion());
-    InputIteratorType    imagIt(   imagImage,  imagImage->GetRequestedRegion());
-    BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
-    BufferIteratorType   net_It(   net_Image,  net_Image->GetRequestedRegion());
+    InputIteratorType    realIt(   realImage[0],  realImage[0]->GetRequestedRegion());
+    InputIteratorType    imagIt(   imagImage[0],  imagImage[0]->GetRequestedRegion());
+    BufferIteratorType   baseIt(   baseImage   ,  baseImage->GetRequestedRegion());
+    BufferIteratorType   net_It(   net_Image   ,  net_Image->GetRequestedRegion());
    
     realIt.SetFirstDirection(  0 );   realIt.SetSecondDirection( 1 );
     imagIt.SetFirstDirection(  0 );   imagIt.SetSecondDirection( 1 );
@@ -628,7 +678,10 @@ int main( int argc, char* argv[] )
    
     // output unfiltered tmap
     std::ostringstream unfiltered_filename;
-    unfiltered_filename << OutputDir <<"/unfiltered"<< iii <<".mha" ;
+    unfiltered_filename << OutputDir <<"/unfiltered";
+    OSSRealzeroright(unfiltered_filename,4,0,iii);
+    unfiltered_filename << "."<< rank <<".mha" ;
+
     WriteImage(net_Image , net_It, unfiltered_filename,sp,orgn);
 
     // write filtered imaged
@@ -659,15 +712,16 @@ int main( int argc, char* argv[] )
       }
     // output filtered tmap
     std::ostringstream filtered_filename;
-    filtered_filename << OutputDir <<"/filtered"<< iii <<".mha" ;
+    filtered_filename << OutputDir <<"/filtered";
+    OSSRealzeroright(filtered_filename,4,0,iii);
+    filtered_filename << "."<< rank <<".mha" ;
+
     WriteImage(filtImage , filtIt, filtered_filename,sp,orgn);
 
    } // end loop over time instances
      
   /* Free memory */
   ierr = DADestroy(dac);CHKERRQ(ierr);
-  ierr = DADestroy(daf);CHKERRQ(ierr);
-  ierr = MatDestroy(A);CHKERRQ(ierr);
   ierr = PetscFinalize();CHKERRQ(ierr);
-  return EXIT_SUCCESS;
+  PetscFunctionReturn(0);
 }
