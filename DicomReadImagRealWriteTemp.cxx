@@ -78,6 +78,7 @@
 #include <fstream>
 #include <string>
 #include "itkExtractImageFilter.h"
+#include "itkMedianImageFilter.h"
 #include "itkGDCMImageIO.h"
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImageSeriesReader.h"
@@ -130,8 +131,8 @@ void RealTimeGenerateFileNames(const char * ExamPath, const int DirId,
          std::ostringstream file_name;
          // hard code for now
          file_name << ExamPath << "/s" << DirId << "/i" 
-                   <<   DirId     + 2*nslice*istep + (2*jjj+1) + iii 
-                   << ".MRDC."<<    2*nslice*istep + (2*jjj+1) + iii ;
+                   <<   DirId     + 2*nslice*(istep+noffset) + (2*jjj+1) + iii 
+                   << ".MRDC."<<    2*nslice*(istep+noffset) + (2*jjj+1) + iii ;
          filenames[iii][jjj] = file_name.str();
       }
    return;
@@ -205,42 +206,54 @@ void WriteIni( const char * OutputDir,
   return;
 }
 // subroutine to write the image to disk
-void WriteImage(InputImageType::Pointer Image, BufferIteratorType imageIt,
-                                             std::ostringstream &filename,
-                                          InputImageType::SpacingType &sp,
-                                          InputImageType::PointType &orgn)
+void WriteImage(InputImageType::Pointer Image, std::ostringstream &filename,
+                                               InputImageType::SizeType &filterRadius)
 {
-  // create output image buffer
-  OutputImageType::Pointer outputImage = OutputImageType::New();
-  outputImage->SetRegions( Image->GetRequestedRegion());
-  outputImage->Allocate();
-  outputImage->SetSpacing( sp );  
-  outputImage->SetOrigin( orgn);
-  OutputIteratorType  outputIt( outputImage, outputImage->GetRequestedRegion());
-  outputIt.SetFirstDirection(  0 );   outputIt.SetSecondDirection( 1 );
-  // copy image buffer into an output buffer of a possibly different data type
-   imageIt.GoToBegin();
-  outputIt.GoToBegin();
-  while( !imageIt.IsAtEnd() )
-    {
-    while ( !imageIt.IsAtEndOfSlice() )
-      {
-      while ( !imageIt.IsAtEndOfLine() )
-        {
-        outputIt.Set( (OutputPixelType)  imageIt.Get()  );
-        ++imageIt;
-        ++outputIt;
-        }
-        imageIt.NextLine();
-        outputIt.NextLine();
-      }
-      imageIt.NextSlice();
-      outputIt.NextSlice();
-    }
+  // setup writer
   WriterType::Pointer writer = WriterType::New();
   writer->SetFileName( filename.str() );
-  std::cout << "writing " << filename.str() << "\n"; 
-  writer->SetInput( outputImage );
+  std::cout << "writing " << filename.str() << std::endl;
+
+  //  Software Guide : BeginLatex
+  //
+  //  Using the image types, it is now possible to define the filter type
+  //  and create the filter object.
+  //
+  //  \index{itk::MedianImageFilter!instantiation}
+  //  \index{itk::MedianImageFilter!New()}
+  //  \index{itk::MedianImageFilter!Pointer}
+  // 
+  //  Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  typedef itk::MedianImageFilter<
+               InputImageType, OutputImageType >  OutputFilterType;
+
+  OutputFilterType::Pointer filter = OutputFilterType::New();
+  // Software Guide : EndCodeSnippet
+
+  // Software Guide : BeginCodeSnippet
+  
+  filter->SetRadius( filterRadius );
+  // Software Guide : EndCodeSnippet
+
+  //  Software Guide : BeginLatex
+  //
+  //  The input to the filter can be taken from any other filter, for example
+  //  a reader. The output can be passed down the pipeline to other filters,
+  //  for example, a writer. An update call on any downstream filter will
+  //  trigger the execution of the median filter.
+  //
+  //  \index{itk::MedianImageFilter!SetInput()}
+  //  \index{itk::MedianImageFilter!GetOutput()}
+  //
+  //  Software Guide : EndLatex 
+
+
+  // Software Guide : BeginCodeSnippet
+  filter->SetInput( Image );
+  writer->SetInput( filter->GetOutput() );
+  // Software Guide : EndCodeSnippet
   try
     {
     writer->Update();
@@ -263,48 +276,57 @@ int main( int argc, char* argv[] )
   /* Initialize Petsc */
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr); 
   PetscFunctionBegin;
-
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank); CHKERRQ(ierr);
 
+  // read input data
+  const char * ExamPath   =                             argv[1] ;
+  const char * OutputDir  =                             argv[3] ;
+  int DirId;   
+  try
+  { 
+     DirId                = boost::lexical_cast<int>(   argv[2]);
+  }
+  catch(const std::exception& e) //catch bad lexical cast
+  {
+     std::cout << "Error getting Command Line Values:\n"
+               << "\nExamPath  = " << argv[1]
+               << "\nDirId     = " << argv[2]
+               << "\nOutputDir = " << argv[3] << std::endl;
+     std::cout << e.what() << std::endl;
+     return EXIT_FAILURE;
+  }
 
   /* Read options */
-  char         ExamPath[PETSC_MAX_PATH_LEN],OutputDir[PETSC_MAX_PATH_LEN];
-  int DirId=0;    
-  int ntime=1;    
-  int noffset=0;    
-  int necho=1;   
-  int nslice=5;   
+  int ntime=1, median=2, noffset=0, necho=1, nslice=5;    // defaults
   PetscScalar alpha = -0.0097,maxdiff=15.0; 
   PetscTruth  flg,Debug=PETSC_FALSE;//debugging...
-  ierr = PetscOptionsGetString(PETSC_NULL,"-ExamPath",ExamPath,256,&flg);CHKERRQ(ierr);
-  ierr = PetscOptionsGetString(PETSC_NULL,"-OutputDir",OutputDir,256,&flg);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(PETSC_NULL,"-DirId",&DirId,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(PETSC_NULL,"-ntime",&ntime,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(PETSC_NULL,"-necho",&necho,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(PETSC_NULL,"-noffset",&noffset,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(PETSC_NULL,"-nslice",&nslice,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-median",&median,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetScalar(PETSC_NULL,"-alpha",&alpha,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetScalar(PETSC_NULL,"-maxdiff",&maxdiff,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetTruth(PETSC_NULL,"-debug",&Debug,&flg);
  
   //error check
-  if( !DirId )
-  {
-     std::cerr << "Error getting Command Line Values:"   <<              std::endl ; 
-     std::cerr << "Usage: " << argv[0]                   <<              std::endl ;
-     std::cerr << "-ExamPath  Directory to ExamPath "    << ExamPath  << std::endl ;
-     std::cerr << "-DirId     Scan # "                   << DirId     << std::endl ;
-     std::cerr << "-OutputDir output directory # "       << OutputDir << std::endl ;
+  if( argc < 4 )
+    {
+     std::cerr << "Usage: " << argv[0] <<
+                  " ExamPath DirId OutputDir [options] " << std::endl;
+     std::cerr << "Available options "                   <<              std::endl ; 
      std::cerr << "-ntime     Number of Time Points "    << ntime     << std::endl ;
      std::cerr << "-noffset   Time offset to begin with" << noffset   << std::endl ;
      std::cerr << "-necho     Number of echo Times  "    << necho     << std::endl ;
      std::cerr << "-nslice    Number of slices "         << nslice    << std::endl ;
      std::cerr << "-alpha     Alpha (ppm/degC) "         << alpha     << std::endl ;
      std::cerr << "-maxdiff   filtering parameter  "     << maxdiff   << std::endl ;
+     std::cerr << "-median    median filtering parameter"<< median    << std::endl ;
      std::cerr << "EchoTime and ImagingFrequency Optional\n" 
               << " but may be input in case of any errors\n" ;
-    return EXIT_FAILURE;
-  }
+     return EXIT_FAILURE;
+    }
+
 
   // setup data structures to contain a list of file names for a single time 
   // instance
@@ -334,7 +356,6 @@ int main( int argc, char* argv[] )
   // get base image first and prepare temperature image
   InputImageType::Pointer   baseImage = InputImageType::New();
   InputImageType::Pointer   net_Image = InputImageType::New();
-  InputImageType::Pointer   filtImage = InputImageType::New();
 
   // image pointers
   std::vector< InputImageType::ConstPointer > realImage; realImage.resize(necho);
@@ -356,7 +377,6 @@ int main( int argc, char* argv[] )
     {
       baseImage->DebugOn();
       net_Image->DebugOn();
-      filtImage->DebugOn();
     }
 
   // dimensions for all images
@@ -373,6 +393,9 @@ int main( int argc, char* argv[] )
 
   // scale image to meters
   sp = 0.001 * realImage[0]->GetSpacing();
+  sp[0]= 1.00;
+  sp[1]= 1.00;
+  sp[2]= 1.00;
   std::cout << "Spacing = ";
   std::cout << sp[0] << ", " << sp[1] << ", " << sp[2] << std::endl;
   
@@ -381,6 +404,9 @@ int main( int argc, char* argv[] )
   orgn[0] = 0.001 * orgn_mm[0];
   orgn[1] = 0.001 * orgn_mm[1];
   orgn[2] = 0.001 * orgn_mm[2];
+  orgn[0] = 0.0;
+  orgn[1] = 0.0;
+  orgn[2] = 0.0;
   std::cout << "Origin = ";
   std::cout << orgn[0] << ", " << orgn[1] << ", " << orgn[2] << std::endl;
 
@@ -389,6 +415,27 @@ int main( int argc, char* argv[] )
                               size=realImage[0]->GetRequestedRegion().GetSize();
 
   WriteIni(OutputDir,orgn,sp,size);
+
+  //  Software Guide : BeginLatex
+  //
+  //  The size of the neighborhood is defined along every dimension by
+  //  passing a \code{SizeType} object with the corresponding values. The
+  //  value on each dimension is used as the semi-size of a rectangular
+  //  box. For example, in $2D$ a size of \(1,2\) will result in a $3 \times
+  //  5$ neighborhood.
+  //
+  //  \index{itk::MedianImageFilter!Radius}
+  //  \index{itk::MedianImageFilter!Neighborhood}
+  //
+  //  Software Guide : EndLatex 
+  InputImageType::SizeType zeroFilterRadius, medianFilterRadius;
+  zeroFilterRadius[0] = 0; // radius along x
+  zeroFilterRadius[1] = 0; // radius along y
+  zeroFilterRadius[2] = 0; // radius along z
+  medianFilterRadius[0] = median; // radius along x
+  medianFilterRadius[1] = median; // radius along y
+  medianFilterRadius[2] = 0; // radius along z
+
 
   // processor bounding box
   PetscInt ProcStart[3], ProcStartGhost[3];
@@ -462,10 +509,8 @@ int main( int argc, char* argv[] )
   // allocate base phase image and output image buffer from first set
   baseImage->SetRegions( procRegion );
   net_Image->SetRegions( procRegion );
-  filtImage->SetRegions( procRegion );
   baseImage->Allocate();
   net_Image->Allocate();
-  filtImage->Allocate();
 
   {
     // get images
@@ -485,13 +530,11 @@ int main( int argc, char* argv[] )
     InputIteratorType    imagIt(   imagImage[0],  imagImage[0]->GetRequestedRegion());
     BufferIteratorType   baseIt(   baseImage,  baseImage->GetRequestedRegion());
     BufferIteratorType   net_It(   net_Image,  net_Image->GetRequestedRegion());
-    BufferIteratorType   filtIt(   filtImage,  filtImage->GetRequestedRegion());
    
     realIt.SetFirstDirection(  0 );   realIt.SetSecondDirection( 1 );
     imagIt.SetFirstDirection(  0 );   imagIt.SetSecondDirection( 1 );
     baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
     net_It.SetFirstDirection(  0 );   net_It.SetSecondDirection( 1 );
-    filtIt.SetFirstDirection(  0 );   filtIt.SetSecondDirection( 1 );
    
     // Software Guide : EndCodeSnippet 
     // set iterators to the beginning
@@ -499,7 +542,6 @@ int main( int argc, char* argv[] )
     imagIt.GoToBegin(); 
     baseIt.GoToBegin();
     net_It.GoToBegin();
-    filtIt.GoToBegin();
     
     // create base phase image and initialize output buffer
     while( !baseIt.IsAtEnd() )
@@ -510,25 +552,21 @@ int main( int argc, char* argv[] )
           {
           baseIt.Set(  std::atan2(  imagIt.Get() , realIt.Get() ) );
           net_It.Set( 0.0 );
-          filtIt.Set( 0.0 );
           ++realIt;
           ++imagIt;
           ++baseIt;
           ++net_It;
-          ++filtIt;
           }
           realIt.NextLine();
           imagIt.NextLine();
           baseIt.NextLine();
           net_It.NextLine();
-          filtIt.NextLine();
         }
         // get next slice
         realIt.NextSlice(); 
         imagIt.NextSlice(); 
         baseIt.NextSlice();
         net_It.NextSlice();
-        filtIt.NextSlice();
       }
     // output base phase image as a place holder
     std::ostringstream basephase_filename;
@@ -537,7 +575,7 @@ int main( int argc, char* argv[] )
     OSSRealzeroright(basephase_filename,4,0,0);
     basephase_filename << "."<< rank <<".mha" ;
 
-    WriteImage(baseImage,baseIt,basephase_filename,sp,orgn);
+    WriteImage(baseImage,basephase_filename,zeroFilterRadius);
 
   }
 
@@ -655,10 +693,12 @@ int main( int argc, char* argv[] )
         while ( !net_It.IsAtEndOfLine() )
           {
           net_It.Set(
-             //net_It.Get() 
-             //         +  
-             (std::atan2( imagIt.Get(), realIt.Get() ) - baseIt.Get()) * tmap_factor
+             net_It.Get() 
+                      +  
+             ( std::atan2( imagIt.Get(), realIt.Get() ) - baseIt.Get() ) * tmap_factor
                     );
+          // update the base to contain the n-1 image for next time
+          baseIt.Set( std::atan2( imagIt.Get(), realIt.Get() ) );
           ++realIt;
           ++imagIt;
           ++baseIt;
@@ -682,41 +722,15 @@ int main( int argc, char* argv[] )
     OSSRealzeroright(unfiltered_filename,4,0,iii);
     unfiltered_filename << "."<< rank <<".mha" ;
 
-    WriteImage(net_Image , net_It, unfiltered_filename,sp,orgn);
+    WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
 
-    // write filtered imaged
-    BufferIteratorType   filtIt(   filtImage,  filtImage->GetRequestedRegion());
-    filtIt.SetFirstDirection(  0 );   filtIt.SetSecondDirection( 1 );
-    filtIt.GoToBegin();
-    net_It.GoToBegin();
-    
-    while( !net_It.IsAtEnd() )
-      {
-      while ( !net_It.IsAtEndOfSlice() )
-        {
-        while ( !net_It.IsAtEndOfLine() )
-          {
-          // only set the temperature if it has changed within a physically
-          // meaningful value. eventually, maxdiff should be predicted from the
-          // kalman filter
-          if ( std::abs( filtIt.Get() - net_It.Get() ) < maxdiff ) 
-                                               filtIt.Set( net_It.Get() );
-          ++net_It;
-          ++filtIt;
-          }
-          filtIt.NextLine();
-          net_It.NextLine();
-        }
-      net_It.NextSlice();
-      filtIt.NextSlice();
-      }
     // output filtered tmap
     std::ostringstream filtered_filename;
     filtered_filename << OutputDir <<"/filtered";
     OSSRealzeroright(filtered_filename,4,0,iii);
     filtered_filename << "."<< rank <<".mha" ;
 
-    WriteImage(filtImage , filtIt, filtered_filename,sp,orgn);
+    WriteImage(net_Image , filtered_filename , medianFilterRadius);
 
    } // end loop over time instances
      
