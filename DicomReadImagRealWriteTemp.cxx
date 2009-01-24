@@ -140,7 +140,7 @@ void RealTimeGenerateFileNames(const char * ExamPath, const int DirId,
 // subroutine to read the dicom data in real-time
 
 template<class T>
-void GetImageData(T ITKPointer, std::vector<std::string>  &filenames )
+InputImageType::ConstPointer GetImageData(T ITKPointer, std::vector<std::string>  &filenames )
 {
   bool DataNotRead = true;
   while(DataNotRead)
@@ -164,7 +164,7 @@ void GetImageData(T ITKPointer, std::vector<std::string>  &filenames )
        sleep(1);
        }
     }
-  return ; 
+  return ITKPointer->GetOutput();
 }
 // write an Ini File containg dicom header info 
 void WriteIni( const char * OutputDir,
@@ -388,8 +388,7 @@ int main( int argc, char* argv[] )
 
   // only need to read in the first set to get the header info
   reader->SetFileNames(filenames[0] );
-  GetImageData(reader, filenames[0]);
-  realImage[0]=reader->GetOutput();
+  realImage[0]= GetImageData(reader, filenames[0]);
 
   // scale image to meters
   sp = 0.001 * realImage[0]->GetSpacing();
@@ -518,12 +517,10 @@ int main( int argc, char* argv[] )
       {
        // get real images
        reader->SetFileNames(filenames[2*jjj  ] );
-       GetImageData(realfilter[jjj], filenames[2*jjj  ] );
-       realImage[jjj] = realfilter[jjj]->GetOutput() ;
+       realImage[jjj] = GetImageData(realfilter[jjj], filenames[2*jjj  ] );
        // get imaginary images
        reader->SetFileNames(filenames[2*jjj+1] );
-       GetImageData(imagfilter[jjj], filenames[2*jjj+1] );
-       imagImage[jjj] = imagfilter[jjj]->GetOutput() ;
+       imagImage[jjj] = GetImageData(imagfilter[jjj], filenames[2*jjj+1] );
       }
     // setup real, imaginary, base phase, and temperature map iterators
     InputIteratorType    realIt(   realImage[0],  realImage[0]->GetRequestedRegion());
@@ -591,12 +588,10 @@ int main( int argc, char* argv[] )
       {
        // get real images
        reader->SetFileNames(filenames[2*jjj  ] );
-       GetImageData(realfilter[jjj], filenames[2*jjj  ] );
-       realImage[jjj] = realfilter[jjj]->GetOutput() ;
+       realImage[jjj] = GetImageData(realfilter[jjj], filenames[2*jjj  ] );
        // get imaginary images
        reader->SetFileNames(filenames[2*jjj+1] );
-       GetImageData(imagfilter[jjj], filenames[2*jjj+1] );
-       imagImage[jjj] = imagfilter[jjj]->GetOutput() ;
+       imagImage[jjj] = GetImageData(imagfilter[jjj], filenames[2*jjj+1] );
       }
 
     // Software Guide : BeginLatex
