@@ -187,14 +187,14 @@ for jobiter in JOBS:
    namejob   = jobiter[0] # the jobs name
    cntrlfile = jobiter[1] # the control file for this job
    #determine the number of processors to run on and execution method
-   numproc  = cntrlfile.getint("compexec","numproc")
-   run      = cntrlfile.get(   "compexec","run")
+   numproc         = cntrlfile.getint("compexec","numproc")
+   runtime_options = cntrlfile.get(   "compexec","runtime_options")
    # code execution on lonestar
    if(comphost.split(".")[0] == "lonestar"):
       bsubbase = cntrlfile.get(   "compexec","bsub")
-      execcode="cd %s/%s/%s ; %s -J %s -n %d -o out.o%s -e err.o%s %s " %  \
+      execcode="cd %s/%s/%s ; %s -J %s -n %d -o out.o%s -e err.o%s ibrun /work/utexas/iv/fuentes/exec/dddas_em64t-cxx %s " %  \
                          (workdir,jobid,namejob,bsubbase,namejob,
-                                        numproc,profileID,profileID,run)
+                                        numproc,profileID,profileID,runtime_options)
    # code execution on shamu
    elif(comphost.split(".")[0] == "shamu"):
       # write a qsub file
@@ -207,13 +207,16 @@ for jobiter in JOBS:
       qsubfile.write("echo 'Got $NSLOTS slots' \n"           )
       qsubfile.write("echo $TMP                \n"           )
       qsubfile.write("export LD_LIBRARY_PATH=%s\n" %  os.getenv('LD_LIBRARY_PATH')         )
-      qsubfile.write(run)
+      qsubfile.write("/home/fuentes/LIBRARIES/MPI/mvapich-1.1-intel-10.1/bin/mpirun -np $NSLOTS -machinefile $TMP/machines /share/work/fuentes/exec/dddas_intel-10.1-mvapich-1.1-cxx-opt  %s" % runtime_options)
       # ensure entire file written before continuing
       qsubfile.close; qsubfile.flush() 
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
                          (workdir,jobid,namejob,namejob)
    else: # default code execution
-      execcode="cd %s/%s/%s ; %s " % (workdir,jobid,namejob, run % numproc)
+      executable ="%s/exec/dddas_%s"%(os.getenv('WORK'),os.getenv('PETSC_ARCH'))
+      execcode="cd %s/%s/%s ; mpirun -n %d %s %s " % (workdir,jobid,namejob, 
+                                                      numproc,executable,
+                                                              runtime_options)
    CODEEXEC.append(execcode)
    # command for vis file transfer
    VISxferlocation=''.join([vishost,":",viswork,'/',jobid])
