@@ -539,8 +539,8 @@ def setupjob(config):
       cntrlfile.set("source_laser"    ,"anfact"          , "%f" % anfact     )
       cntrlfile.set("neumann_boundary","g_flux"          , "%f" % g_flux     )
       cntrlfile.set("cauchy_boundary" ,"coeff_cool"      , "%f" % coeff_cool )
-      run = cntrlfile.get( "compexec","run")
-      cntrlfile.set("compexec" ,"run", run + method )
+      runtime_options = cntrlfile.get( "compexec","runtime_options")
+      cntrlfile.set("compexec" ,"runtime_options", runtime_options + method )
       cntrlfile.set("compexec" ,"numproc", numproclist[numproclistid])
       # execute any mesh file and power file commands
       if(os.system(meshcmd % (namejob,namejob))):
