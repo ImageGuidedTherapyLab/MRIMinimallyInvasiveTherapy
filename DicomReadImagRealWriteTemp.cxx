@@ -435,12 +435,6 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
 
   }
 
-  // setup vector image for CSI computation
-  std::vector< InputImageType::Pointer > currentImage(necho,NULL);
-  ImageCastFilterType::Pointer castFilter = ImageCastFilterType::New() ;
-  for (int jjj = 0 ; jjj < necho ; jjj ++ )
-     castFilter->PushBackInput( currentImage[jjj] ) ;
-
   // loop over time instances
   for( int iii = 1 ; iii <= ntime ; iii++)
    {
