@@ -435,6 +435,8 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
 
   }
 
+  EnhanceSNR(baseImage);
+
   // loop over time instances
   for( int iii = 1 ; iii <= ntime ; iii++)
    {
