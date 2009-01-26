@@ -429,7 +429,7 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
     // output file
     basephase_filename << OutputDir <<"/tmap";
     OSSRealzeroright(basephase_filename,4,0,0);
-    basephase_filename << "."<< rank <<".mha" ;
+    basephase_filename << "."<< rank <<".vtk" ;
 
     WriteImage(baseImage[0],basephase_filename,zeroFilterRadius);
 
@@ -563,7 +563,7 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
     std::ostringstream unfiltered_filename;
     unfiltered_filename << OutputDir <<"/unfiltered";
     OSSRealzeroright(unfiltered_filename,4,0,iii);
-    unfiltered_filename << "."<< rank <<".mha" ;
+    unfiltered_filename << "."<< rank <<".vtk" ;
 
     WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
 
@@ -571,7 +571,7 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
     std::ostringstream filtered_filename;
     filtered_filename << OutputDir <<"/filtered";
     OSSRealzeroright(filtered_filename,4,0,iii);
-    filtered_filename << "."<< rank <<".mha" ;
+    filtered_filename << "."<< rank <<".vtk" ;
 
     WriteImage(net_Image , filtered_filename , medianFilterRadius);
 
@@ -717,7 +717,7 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
     std::ostringstream unfiltered_filename;
     unfiltered_filename << OutputDir <<"/unfiltered";
     OSSRealzeroright(unfiltered_filename,4,0,iii);
-    unfiltered_filename << "."<< rank <<".mha" ;
+    unfiltered_filename << "."<< rank <<".vtk" ;
 
     WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
 
@@ -725,7 +725,7 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
     std::ostringstream filtered_filename;
     filtered_filename << OutputDir <<"/filtered";
     OSSRealzeroright(filtered_filename,4,0,iii);
-    filtered_filename << "."<< rank <<".mha" ;
+    filtered_filename << "."<< rank <<".vtk" ;
 
     WriteImage(net_Image , filtered_filename , medianFilterRadius);
 
