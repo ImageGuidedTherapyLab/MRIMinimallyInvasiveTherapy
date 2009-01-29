@@ -252,6 +252,8 @@ private:
   // dicom readers
   ReaderType::Pointer  reader; 
   ImageIOType::Pointer gdcmIO;
+  // image dimension info
+  InputImageType::RegionType::SizeType size;
   // structured grid infrastructure
   DA             dac;
   // error code
@@ -369,9 +371,8 @@ PetscErrorCode RealTimeThermalImaging::GetHeaderData(const char *ExamPath,
   std::cout << "Origin = ";
   std::cout << orgn[0] << ", " << orgn[1] << ", " << orgn[2] << std::endl;
 
-  // write out header info
-  InputImageType::RegionType::SizeType
-                            size=tmpImage->GetRequestedRegion().GetSize();
+  // get size information
+  size=tmpImage->GetRequestedRegion().GetSize();
 
   PetscFunctionReturn(0);
 }
