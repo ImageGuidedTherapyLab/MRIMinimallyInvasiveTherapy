@@ -222,25 +222,26 @@ class RealTimeThermalImaging
 public:
   RealTimeThermalImaging(); //default constructor
   void DebugOn(); // enable debugging
-  PetscErrorCode GetCommandLine();//setup data structures from command line arguements
-  PetscErrorCode GetHeaderData(const char *,const int); //get dicom header info
+  //setup data structures from command line arguements
+  PetscErrorCode GetCommandLine(int ,char**);
+  PetscErrorCode GetHeaderData(); //get dicom header info
   PetscErrorCode SetupDA();       //setup structured grid infrastructure
   PetscErrorCode FinalizeDA();    //close structured grid infrastructure
-  PetscErrorCode GenerateCSITmap(const char * OutputDir); // generate CSI TMAP
-  PetscErrorCode GeneratePRFTmap(const char * OutputDir); // generate PRF TMAP
+  PetscErrorCode GenerateCSITmap(); // generate CSI TMAP
+  PetscErrorCode GeneratePRFTmap(); // generate PRF TMAP
   // generate phase images from real imaginary
   InputImageType::Pointer GetPhaseImage(PhaseFilterType::Pointer ,
                                         std::vector<std::string>  &,
                                         std::vector<std::string>  &); 
-  // generate the expected file of a given image acquisition set
-  PetscErrorCode RealTimeGenerateFileNames(const char * , const int , 
-                                           const int    , const int ,
-                                           const int    , const int ,
-                                         std::vector < std::vector < std::string > > &);
   // write an ini file containing dicom header info
-  PetscErrorCode WriteIni( const char * );
+  PetscErrorCode WriteIni();
+  // get number of echo times
+  int get_necho () const { return necho; }
 private:
-  int ntime, median, noffset, necho, nslice;    // defaults
+  // generate the expected file of a given image acquisition set
+  PetscErrorCode RealTimeGenerateFileNames( const int   , 
+                                         std::vector < std::vector < std::string > > &);
+  int necho, ntime, median, noffset, nslice;    // defaults
   PetscScalar alpha,maxdiff;
   // dimensions for all images
   InputImageType::SpacingType sp;
@@ -256,6 +257,13 @@ private:
   InputImageType::RegionType::SizeType size;
   // structured grid infrastructure
   DA             dac;
+  // to hold final image
+  InputImageType::Pointer   net_Image;
+  // command line arguments
+  const char *ExamPath, *OutputDir; 
+  int DirId;   
+  // mpi rank
+  PetscInt       rank;
   // error code
   PetscErrorCode ierr;
 };
@@ -292,9 +300,45 @@ RealTimeThermalImaging::RealTimeThermalImaging()
 // get command line values
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::GetCommandLine"
-PetscErrorCode RealTimeThermalImaging::GetCommandLine()
+PetscErrorCode RealTimeThermalImaging::GetCommandLine(int argc, char** argv)
 {
   PetscFunctionBegin;
+
+  // read input data
+  ExamPath   =    argv[1] ;
+  OutputDir  =    argv[3] ;
+  try
+  { 
+     DirId                = boost::lexical_cast<int>(   argv[2]);
+  }
+  catch(const std::exception& e) //catch bad lexical cast
+  {
+     std::cout << "Error getting Command Line Values:\n"
+               << "\nExamPath  = " << argv[1]
+               << "\nDirId     = " << argv[2]
+               << "\nOutputDir = " << argv[3] << std::endl;
+     std::cout << e.what() << std::endl;
+     return EXIT_FAILURE;
+  }
+
+  //error check
+  if( argc < 4 )
+    {
+     std::cerr << "Usage: " << argv[0] <<
+                  " ExamPath DirId OutputDir [options] "   << std::endl;
+     std::cerr << "Available options: [default value]"     << std::endl ; 
+     std::cerr << "-ntime     Number of Time Points: "     << ntime   << std::endl ;
+     std::cerr << "-noffset   Time offset to begin with: " << noffset << std::endl ;
+     std::cerr << "-necho     Number of echo Times: "      << necho   << std::endl ;
+     std::cerr << "-nslice    Number of slices: "          << nslice  << std::endl ;
+     std::cerr << "-alpha     Alpha (ppm/degC): "          << alpha   << std::endl ;
+     std::cerr << "-maxdiff   filtering parameter: "       << maxdiff << std::endl ;
+     std::cerr << "-median    median filtering parameter: "<< median  << std::endl ;
+     std::cerr << "EchoTime and ImagingFrequency Optional\n" 
+              << " but may be input in case of any errors\n" ;
+     return EXIT_FAILURE;
+    }
+
   /* Read options */
   ierr=PetscOptionsGetInt(PETSC_NULL,"-ntime",&ntime,PETSC_NULL);CHKERRQ(ierr);
   ierr=PetscOptionsGetInt(PETSC_NULL,"-necho",&necho,PETSC_NULL);CHKERRQ(ierr);
@@ -320,6 +364,21 @@ PetscErrorCode RealTimeThermalImaging::GetCommandLine()
   medianFilterRadius[1] = median; // radius along y
   medianFilterRadius[2] = 0; // radius along z
 
+  // make sure the output directory exist, using the cross
+  // platform tools: itksys::SystemTools. In this case we select to create
+  // the directory if it does not exist yet.
+  //
+  // \index{itksys!SystemTools}
+  // \index{itksys!MakeDirectory}
+  // \index{SystemTools}
+  // \index{SystemTools!MakeDirectory}
+  // \index{MakeDirectory!SystemTools}
+  // \index{MakeDirectory!itksys}
+  itksys::SystemTools::MakeDirectory( OutputDir );
+
+  // get rank
+  ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank); CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 // turn on debuggin
@@ -328,24 +387,29 @@ PetscErrorCode RealTimeThermalImaging::GetCommandLine()
 void RealTimeThermalImaging::DebugOn()
 {
   PetscFunctionBegin;
-  for (int jjj = 0 ; jjj < necho ; jjj ++ ) baseImage[jjj]->DebugOn();
   net_Image->DebugOn();
+  //sp[0]= 1.00;
+  //sp[1]= 1.00;
+  //sp[2]= 1.00;
+  //orgn[0] = 0.0;
+  //orgn[1] = 0.0;
+  //orgn[2] = 0.0;
   PetscFunctionReturnVoid();
 }
 //get dicom header data
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::GetHeaderData"
-PetscErrorCode RealTimeThermalImaging::GetHeaderData(const char *ExamPath,
-                                                     const int DirId )
+PetscErrorCode RealTimeThermalImaging::GetHeaderData()
 {
   PetscFunctionBegin;
   // setup data structures to contain a list of file names for a single time 
   // instance
-  std::vector< std::vector<std::string> > 
-       filenames( 2 * necho , std::vector< std::string >::vector(nslice,"") );
+  // file names
+  std::vector< std::vector<std::string> > filenames( 2 * necho , 
+                             std::vector< std::string >::vector(nslice,"") );
 
   // generate first set of images filenames
-  RealTimeGenerateFileNames(ExamPath,DirId,0,nslice,necho,noffset,filenames);
+  RealTimeGenerateFileNames(0,filenames);
 
   // only need to read in the first set to get the header info
   reader->SetFileNames(filenames[0] );
@@ -353,10 +417,6 @@ PetscErrorCode RealTimeThermalImaging::GetHeaderData(const char *ExamPath,
   tmpImage= GetImageData(reader, filenames[0]);
   // scale image to meters
   sp = 0.001 * tmpImage->GetSpacing();
-
-  sp[0]= 1.00;
-  sp[1]= 1.00;
-  sp[2]= 1.00;
   std::cout << "Spacing = ";
   std::cout << sp[0] << ", " << sp[1] << ", " << sp[2] << std::endl;
   
@@ -365,9 +425,6 @@ PetscErrorCode RealTimeThermalImaging::GetHeaderData(const char *ExamPath,
   orgn[0] = 0.001 * orgn_mm[0];
   orgn[1] = 0.001 * orgn_mm[1];
   orgn[2] = 0.001 * orgn_mm[2];
-  orgn[0] = 0.0;
-  orgn[1] = 0.0;
-  orgn[2] = 0.0;
   std::cout << "Origin = ";
   std::cout << orgn[0] << ", " << orgn[1] << ", " << orgn[2] << std::endl;
 
@@ -426,6 +483,10 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
   // Software Guide : BeginCodeSnippet
   procRegion.SetSize(  proc_width  );
   procRegion.SetIndex( proc_start );
+
+  net_Image = InputImageType::New();
+  net_Image->SetRegions( procRegion );
+  net_Image->Allocate();
   // Software Guide : EndCodeSnippet
   PetscFunctionReturn(0);
 }
@@ -441,15 +502,25 @@ PetscErrorCode RealTimeThermalImaging::FinalizeDA()
 // generate proton resonance frequency thermal images
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::GeneratePRFTmap"
-PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap( const char * OutputDir)
+PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
 {
   PetscFunctionBegin;
+
+  std::vector< std::vector<std::string> > filenames( 2 , 
+                             std::vector< std::string >::vector(nslice,"") );
+  RealTimeGenerateFileNames(0,filenames);
+
+  // containers for phase data
+  PhaseFilterType::Pointer  basephaseFilter=PhaseFilterType::New(),// n-1 phase data
+                         currentphaseFilter=PhaseFilterType::New();// current phase data
+
+  // containers for image pointers
+  // get base image first and prepare temperature image
+  InputImageType::Pointer baseImage, currentImage;
+
   {
     // get images
-    for (int jjj = 0 ; jjj < necho ; jjj ++ )
-       baseImage[jjj] = GetPhaseImage(basephaseFilter[jjj],reader, procRegion,
-                                                           filenames[2*jjj  ],
-                                                           filenames[2*jjj+1] );
+    baseImage = GetPhaseImage(basephaseFilter,filenames[0],filenames[1] );
     // output base phase image as a place holder
     std::ostringstream basephase_filename;
     // output file
@@ -457,86 +528,81 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap( const char * OutputDir)
     OSSRealzeroright(basephase_filename,4,0,0);
     basephase_filename << "."<< rank <<".vtk" ;
 
-    WriteImage(baseImage[0],basephase_filename,zeroFilterRadius);
+    WriteImage(baseImage,basephase_filename,zeroFilterRadius);
 
   }
 
-  EnhanceSNR(baseImage);
+  //EnhanceSNR(baseImage);
 
   // loop over time instances
   for( int iii = 1 ; iii <= ntime ; iii++)
    {
     // generate list of file names
-    RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice,necho,noffset,filenames);
+    RealTimeGenerateFileNames(0,filenames);
 
     // get images and header info
     double tmap_factor;
-    for (int jjj = 0 ; jjj < necho ; jjj ++ )
-      {
-       currentImage[jjj] = GetPhaseImage(currentphaseFilter[jjj],
-                                         reader,procRegion,filenames[2*jjj  ],
-                                                           filenames[2*jjj+1] );
-       // Software Guide : BeginLatex
-       // 
-       // We can trigger the reading process by calling the \code{Update()}
-       // method on the series reader. It is wise to put this invocation inside
-       // a \code{try/catch} block since the process may eventually throw
-       // exceptions.
-       //
-       // Software Guide : EndLatex
-     
-       // scratch storage for header value
-       std::string value; 
-       // Get Echo Time 
-       std::string echotimekey = "0018|0081";
-       double echotime;
-       try
-       {  
-          gdcmIO->GetValueFromTag(echotimekey, value) ;
-          echotime=boost::lexical_cast<double>(value);
-       }
-       catch(const std::exception& e) //catch bad lexical cast
-       {
-          std::cout<<"Error getting echo time " << " (" << echotimekey << ")\n";
-          std::cout<<"value returned is "<<value<< "\n";
-          std::cout<<e.what() << std::endl;
-          ierr = PetscOptionsGetScalar(PETSC_NULL,"-echotime",&echotime,PETSC_NULL);
-          CHKERRQ(ierr);
-          std::cout << "using value from command line "<< echotime << "\n";
-       }
-       std::string imagfreqkey = "0018|0084";
-       double imagfreq;
-       try
-       {  
-          gdcmIO->GetValueFromTag(imagfreqkey, value) ;
-          // trailing space on string causing cast error
-          value.erase(value.find(' ')) ; 
-          imagfreq=boost::lexical_cast<double>(value);
-       }
-       catch(const std::exception& e) //catch bad lexical cast
-       {
-          std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
-          std::cout << "value returned is "<<value << "\n";
-          std::cout << e.what() << std::endl;
-          ierr = PetscOptionsGetScalar(PETSC_NULL,"-imagfreq",&imagfreq,PETSC_NULL);
-          CHKERRQ(ierr);
-          std::cout << "using value from command line "<< imagfreq << "\n";
-       }
-       // misc info
-       // echo data
-       std::string studyIdkey  = "0020|0010" ;
-       std::string seriesIdkey = "0020|0011" ;
-       gdcmIO->GetValueFromTag(studyIdkey  , value) ;
-       std::cout << "Study Id " << value  ;
-       gdcmIO->GetValueFromTag(seriesIdkey , value) ;
-       std::cout << " Series Number " << value   << "\n" ;
-       std::cout << "alpha " << alpha  << " (ppm/degC) "
-                 << "maxdiff " << maxdiff << " (degC) "
-                 << "echo time " << echotime << " (ms) "
-                 << "imaging freq " << imagfreq << " (MHz) \n";
-       // faster to multiply
-       tmap_factor =  1.0/(2.0*pi*imagfreq*alpha*echotime*1.e-3) ;
-      }
+    currentImage = GetPhaseImage(currentphaseFilter,filenames[0], filenames[1] );
+    // Software Guide : BeginLatex
+    // 
+    // We can trigger the reading process by calling the \code{Update()}
+    // method on the series reader. It is wise to put this invocation inside
+    // a \code{try/catch} block since the process may eventually throw
+    // exceptions.
+    //
+    // Software Guide : EndLatex
+    
+    // scratch storage for header value
+    std::string value; 
+    // Get Echo Time 
+    std::string echotimekey = "0018|0081";
+    double echotime;
+    try
+    {  
+       gdcmIO->GetValueFromTag(echotimekey, value) ;
+       echotime=boost::lexical_cast<double>(value);
+    }
+    catch(const std::exception& e) //catch bad lexical cast
+    {
+       std::cout<<"Error getting echo time " << " (" << echotimekey << ")\n";
+       std::cout<<"value returned is "<<value<< "\n";
+       std::cout<<e.what() << std::endl;
+       ierr = PetscOptionsGetScalar(PETSC_NULL,"-echotime",&echotime,PETSC_NULL);
+       CHKERRQ(ierr);
+       std::cout << "using value from command line "<< echotime << "\n";
+    }
+    std::string imagfreqkey = "0018|0084";
+    double imagfreq;
+    try
+    {  
+       gdcmIO->GetValueFromTag(imagfreqkey, value) ;
+       // trailing space on string causing cast error
+       value.erase(value.find(' ')) ; 
+       imagfreq=boost::lexical_cast<double>(value);
+    }
+    catch(const std::exception& e) //catch bad lexical cast
+    {
+       std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
+       std::cout << "value returned is "<<value << "\n";
+       std::cout << e.what() << std::endl;
+       ierr = PetscOptionsGetScalar(PETSC_NULL,"-imagfreq",&imagfreq,PETSC_NULL);
+       CHKERRQ(ierr);
+       std::cout << "using value from command line "<< imagfreq << "\n";
+    }
+    // misc info
+    // echo data
+    std::string studyIdkey  = "0020|0010" ;
+    std::string seriesIdkey = "0020|0011" ;
+    gdcmIO->GetValueFromTag(studyIdkey  , value) ;
+    std::cout << "Study Id " << value  ;
+    gdcmIO->GetValueFromTag(seriesIdkey , value) ;
+    std::cout << " Series Number " << value   << "\n" ;
+    std::cout << "alpha " << alpha  << " (ppm/degC) "
+              << "maxdiff " << maxdiff << " (degC) "
+              << "echo time " << echotime << " (ms) "
+              << "imaging freq " << imagfreq << " (MHz) \n";
+    // faster to multiply
+    tmap_factor =  1.0/(2.0*pi*imagfreq*alpha*echotime*1.e-3) ;
 
    
     // Software Guide : BeginLatex
@@ -546,9 +612,9 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap( const char * OutputDir)
     // to walk the same linear path through a slice.  Remember that the
     // \emph{second} direction of the slice iterator defines the direction that
     // linear iteration walks within a slice
-    InputIteratorType    currIt(currentImage[0],currentImage[0]->GetRequestedRegion());
-    BufferIteratorType   baseIt(   baseImage[0],   baseImage[0]->GetRequestedRegion());
-    BufferIteratorType   net_It(   net_Image   ,      net_Image->GetRequestedRegion());
+    InputIteratorType    currIt(currentImage   ,currentImage->GetRequestedRegion());
+    BufferIteratorType   baseIt(   baseImage   ,   baseImage->GetRequestedRegion());
+    BufferIteratorType   net_It(   net_Image   ,   net_Image->GetRequestedRegion());
    
     currIt.SetFirstDirection(  0 );   currIt.SetSecondDirection( 1 );
     baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
@@ -607,7 +673,7 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap( const char * OutputDir)
 // generate CSI thermal images
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::GenerateCSITmap"
-PetscErrorCode RealTimeThermalImaging::GenerateCSITmap( const char * OutputDir)
+PetscErrorCode RealTimeThermalImaging::GenerateCSITmap() 
 {
   PetscFunctionBegin;
 
@@ -617,155 +683,154 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap( const char * OutputDir)
   for (int jjj = 0 ; jjj < necho ; jjj ++ )
      castFilter->PushBackInput( currentImage[jjj] ) ;
 
-  // loop over time instances
-  for( int iii = 0 ; iii <= ntime ; iii++)
-   {
-    // generate list of file names
-    RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice,necho,noffset,filenames);
+  std::vector< std::vector<std::string> > filenames( 2 * necho , 
+                             std::vector< std::string >::vector(nslice,"") );
+  //// loop over time instances
+  //for( int iii = 0 ; iii <= ntime ; iii++)
+  // {
+  //  // generate list of file names
+  //  RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice,necho,noffset,filenames);
 
-    // get images and header info
-    double tmap_factor;
-    for (int jjj = 0 ; jjj < necho ; jjj ++ )
-      {
-       currentImage[jjj] = GetPhaseImage(currentphaseFilter[jjj],
-                                         reader,procRegion,filenames[2*jjj  ],
-                                                           filenames[2*jjj+1] );
-       // Software Guide : BeginLatex
-       // 
-       // We can trigger the reading process by calling the \code{Update()}
-       // method on the series reader. It is wise to put this invocation inside
-       // a \code{try/catch} block since the process may eventually throw
-       // exceptions.
-       //
-       // Software Guide : EndLatex
-     
-       // scratch storage for header value
-       std::string value; 
-       // Get Echo Time 
-       std::string echotimekey = "0018|0081";
-       double echotime;
-       try
-       {  
-          gdcmIO->GetValueFromTag(echotimekey, value) ;
-          echotime=boost::lexical_cast<double>(value);
-       }
-       catch(const std::exception& e) //catch bad lexical cast
-       {
-          std::cout<<"Error getting echo time " << " (" << echotimekey << ")\n";
-          std::cout<<"value returned is "<<value<< "\n";
-          std::cout<<e.what() << std::endl;
-          ierr = PetscOptionsGetScalar(PETSC_NULL,"-echotime",&echotime,PETSC_NULL);
-          CHKERRQ(ierr);
-          std::cout << "using value from command line "<< echotime << "\n";
-       }
-       std::string imagfreqkey = "0018|0084";
-       double imagfreq;
-       try
-       {  
-          gdcmIO->GetValueFromTag(imagfreqkey, value) ;
-          // trailing space on string causing cast error
-          value.erase(value.find(' ')) ; 
-          imagfreq=boost::lexical_cast<double>(value);
-       }
-       catch(const std::exception& e) //catch bad lexical cast
-       {
-          std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
-          std::cout << "value returned is "<<value << "\n";
-          std::cout << e.what() << std::endl;
-          ierr = PetscOptionsGetScalar(PETSC_NULL,"-imagfreq",&imagfreq,PETSC_NULL);
-          CHKERRQ(ierr);
-          std::cout << "using value from command line "<< imagfreq << "\n";
-       }
-       // misc info
-       // echo data
-       std::string studyIdkey  = "0020|0010" ;
-       std::string seriesIdkey = "0020|0011" ;
-       gdcmIO->GetValueFromTag(studyIdkey  , value) ;
-       std::cout << "Study Id " << value  ;
-       gdcmIO->GetValueFromTag(seriesIdkey , value) ;
-       std::cout << " Series Number " << value   << "\n" ;
-       std::cout << "alpha " << alpha  << " (ppm/degC) "
-                 << "maxdiff " << maxdiff << " (degC) "
-                 << "echo time " << echotime << " (ms) "
-                 << "imaging freq " << imagfreq << " (MHz) \n";
-       // faster to multiply
-       tmap_factor =  1.0/(2.0*pi*imagfreq*alpha*echotime*1.e-3) ;
-      }
+  //  // get images and header info
+  //  double tmap_factor;
+  //  for (int jjj = 0 ; jjj < necho ; jjj ++ )
+  //    {
+  //     currentImage[jjj] = GetPhaseImage(currentphaseFilter[jjj],
+  //                                       reader,procRegion,filenames[2*jjj  ],
+  //                                                         filenames[2*jjj+1] );
+  //     // Software Guide : BeginLatex
+  //     // 
+  //     // We can trigger the reading process by calling the \code{Update()}
+  //     // method on the series reader. It is wise to put this invocation inside
+  //     // a \code{try/catch} block since the process may eventually throw
+  //     // exceptions.
+  //     //
+  //     // Software Guide : EndLatex
+  //   
+  //     // scratch storage for header value
+  //     std::string value; 
+  //     // Get Echo Time 
+  //     std::string echotimekey = "0018|0081";
+  //     double echotime;
+  //     try
+  //     {  
+  //        gdcmIO->GetValueFromTag(echotimekey, value) ;
+  //        echotime=boost::lexical_cast<double>(value);
+  //     }
+  //     catch(const std::exception& e) //catch bad lexical cast
+  //     {
+  //        std::cout<<"Error getting echo time " << " (" << echotimekey << ")\n";
+  //        std::cout<<"value returned is "<<value<< "\n";
+  //        std::cout<<e.what() << std::endl;
+  //        ierr = PetscOptionsGetScalar(PETSC_NULL,"-echotime",&echotime,PETSC_NULL);
+  //        CHKERRQ(ierr);
+  //        std::cout << "using value from command line "<< echotime << "\n";
+  //     }
+  //     std::string imagfreqkey = "0018|0084";
+  //     double imagfreq;
+  //     try
+  //     {  
+  //        gdcmIO->GetValueFromTag(imagfreqkey, value) ;
+  //        // trailing space on string causing cast error
+  //        value.erase(value.find(' ')) ; 
+  //        imagfreq=boost::lexical_cast<double>(value);
+  //     }
+  //     catch(const std::exception& e) //catch bad lexical cast
+  //     {
+  //        std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
+  //        std::cout << "value returned is "<<value << "\n";
+  //        std::cout << e.what() << std::endl;
+  //        ierr = PetscOptionsGetScalar(PETSC_NULL,"-imagfreq",&imagfreq,PETSC_NULL);
+  //        CHKERRQ(ierr);
+  //        std::cout << "using value from command line "<< imagfreq << "\n";
+  //     }
+  //     // misc info
+  //     // echo data
+  //     std::string studyIdkey  = "0020|0010" ;
+  //     std::string seriesIdkey = "0020|0011" ;
+  //     gdcmIO->GetValueFromTag(studyIdkey  , value) ;
+  //     std::cout << "Study Id " << value  ;
+  //     gdcmIO->GetValueFromTag(seriesIdkey , value) ;
+  //     std::cout << " Series Number " << value   << "\n" ;
+  //     std::cout << "alpha " << alpha  << " (ppm/degC) "
+  //               << "maxdiff " << maxdiff << " (degC) "
+  //               << "echo time " << echotime << " (ms) "
+  //               << "imaging freq " << imagfreq << " (MHz) \n";
+  //     // faster to multiply
+  //     tmap_factor =  1.0/(2.0*pi*imagfreq*alpha*echotime*1.e-3) ;
+  //    }
 
-   
-    // Software Guide : BeginLatex
-    // setup real, imaginary, base phase, and temperature map iterators
-    // The const slice iterator walks the 3D input image, and the non-const
-    // linear iterator walks the 2D output image. The iterators are initialized
-    // to walk the same linear path through a slice.  Remember that the
-    // \emph{second} direction of the slice iterator defines the direction that
-    // linear iteration walks within a slice
-    InputIteratorType    currIt(currentImage[0],currentImage[0]->GetRequestedRegion());
-    BufferIteratorType   baseIt(   baseImage[0],   baseImage[0]->GetRequestedRegion());
-    BufferIteratorType   net_It(   net_Image   ,      net_Image->GetRequestedRegion());
-   
-    currIt.SetFirstDirection(  0 );   currIt.SetSecondDirection( 1 );
-    baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
-    net_It.SetFirstDirection(  0 );   net_It.SetSecondDirection( 1 );
-   
-    // Software Guide : EndCodeSnippet 
-    // set iterators to the beginning
-    currIt.GoToBegin();
-    baseIt.GoToBegin();
-    net_It.GoToBegin();
-    // compute net phase difference
-    while( !net_It.IsAtEnd() )
-      {
-      while ( !net_It.IsAtEndOfSlice() )
-        {
-        while ( !net_It.IsAtEndOfLine() )
-          {
-          net_It.Set(
-             net_It.Get() +  ( currIt.Get() - baseIt.Get() ) * tmap_factor
-                    );
-          // update the base to contain the n-1 image for next time
-          baseIt.Set( currIt.Get() );
-          ++currIt;
-          ++baseIt;
-          ++net_It;
-          }
-          currIt.NextLine();
-          baseIt.NextLine();
-          net_It.NextLine();
-        }
-      // get next slice
-      currIt.NextSlice(); 
-      net_It.NextSlice();
-      baseIt.NextSlice();
-      }
-   
-    // output unfiltered tmap
-    std::ostringstream unfiltered_filename;
-    unfiltered_filename << OutputDir <<"/unfiltered";
-    OSSRealzeroright(unfiltered_filename,4,0,iii);
-    unfiltered_filename << "."<< rank <<".vtk" ;
+  // 
+  //  // Software Guide : BeginLatex
+  //  // setup real, imaginary, base phase, and temperature map iterators
+  //  // The const slice iterator walks the 3D input image, and the non-const
+  //  // linear iterator walks the 2D output image. The iterators are initialized
+  //  // to walk the same linear path through a slice.  Remember that the
+  //  // \emph{second} direction of the slice iterator defines the direction that
+  //  // linear iteration walks within a slice
+  //  InputIteratorType    currIt(currentImage[0],currentImage[0]->GetRequestedRegion());
+  //  BufferIteratorType   baseIt(   baseImage[0],   baseImage[0]->GetRequestedRegion());
+  //  BufferIteratorType   net_It(   net_Image   ,      net_Image->GetRequestedRegion());
+  // 
+  //  currIt.SetFirstDirection(  0 );   currIt.SetSecondDirection( 1 );
+  //  baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
+  //  net_It.SetFirstDirection(  0 );   net_It.SetSecondDirection( 1 );
+  // 
+  //  // Software Guide : EndCodeSnippet 
+  //  // set iterators to the beginning
+  //  currIt.GoToBegin();
+  //  baseIt.GoToBegin();
+  //  net_It.GoToBegin();
+  //  // compute net phase difference
+  //  while( !net_It.IsAtEnd() )
+  //    {
+  //    while ( !net_It.IsAtEndOfSlice() )
+  //      {
+  //      while ( !net_It.IsAtEndOfLine() )
+  //        {
+  //        net_It.Set(
+  //           net_It.Get() +  ( currIt.Get() - baseIt.Get() ) * tmap_factor
+  //                  );
+  //        // update the base to contain the n-1 image for next time
+  //        baseIt.Set( currIt.Get() );
+  //        ++currIt;
+  //        ++baseIt;
+  //        ++net_It;
+  //        }
+  //        currIt.NextLine();
+  //        baseIt.NextLine();
+  //        net_It.NextLine();
+  //      }
+  //    // get next slice
+  //    currIt.NextSlice(); 
+  //    net_It.NextSlice();
+  //    baseIt.NextSlice();
+  //    }
+  // 
+  //  // output unfiltered tmap
+  //  std::ostringstream unfiltered_filename;
+  //  unfiltered_filename << OutputDir <<"/unfiltered";
+  //  OSSRealzeroright(unfiltered_filename,4,0,iii);
+  //  unfiltered_filename << "."<< rank <<".vtk" ;
 
-    WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
+  //  WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
 
-    // output filtered tmap
-    std::ostringstream filtered_filename;
-    filtered_filename << OutputDir <<"/filtered";
-    OSSRealzeroright(filtered_filename,4,0,iii);
-    filtered_filename << "."<< rank <<".vtk" ;
+  //  // output filtered tmap
+  //  std::ostringstream filtered_filename;
+  //  filtered_filename << OutputDir <<"/filtered";
+  //  OSSRealzeroright(filtered_filename,4,0,iii);
+  //  filtered_filename << "."<< rank <<".vtk" ;
 
-    WriteImage(net_Image , filtered_filename , medianFilterRadius);
+  //  WriteImage(net_Image , filtered_filename , medianFilterRadius);
 
-   } // end loop over time instances
+  // } // end loop over time instances
   PetscFunctionReturn(0);
 }
 // subroutine to generate dicom filenames
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::RealTimeGenerateFileNames"
 PetscErrorCode 
-RealTimeThermalImaging::RealTimeGenerateFileNames(const char * ExamPath, 
-                                                  const int DirId, const int istep,
-                                                  const int nslice, const int necho,
-                                                  const int noffset,
+RealTimeThermalImaging::RealTimeGenerateFileNames(const int istep,
                          std::vector < std::vector < std::string > > &filenames)
 {
    PetscFunctionBegin;
@@ -830,12 +895,12 @@ InputImageType::Pointer RealTimeThermalImaging::GetPhaseImage(
     }
 
   // Software Guide : EndCodeSnippet
-  PetscFunctionReturn(return phaseFilter->GetOutput());
+  PetscFunctionReturn(phaseFilter->GetOutput());
 }
 // write an Ini File containg dicom header info 
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::WriteIni"
-PetscErrorCode RealTimeThermalImaging::WriteIni( const char * OutputDir)
+PetscErrorCode RealTimeThermalImaging::WriteIni()
 {
   PetscFunctionBegin;
   std::ofstream Inifile;
@@ -857,14 +922,14 @@ PetscErrorCode RealTimeThermalImaging::WriteIni( const char * OutputDir)
   /* physical space dimensions */
 
   // origin
-  Inifile <<"x0=" << origin[ 0] << std::endl ;
-  Inifile <<"y0=" << origin[ 1] << std::endl ;
-  Inifile <<"z0=" << origin[ 2] << std::endl ;
+  Inifile <<"x0=" << orgn[ 0] << std::endl ;
+  Inifile <<"y0=" << orgn[ 1] << std::endl ;
+  Inifile <<"z0=" << orgn[ 2] << std::endl ;
 
   // spacing
-  Inifile <<"dx=" << spacing[0] << std::endl ;
-  Inifile <<"dy=" << spacing[1] << std::endl ;
-  Inifile <<"dz=" << spacing[2] << std::endl ;
+  Inifile <<"dx=" << sp[0] << std::endl ;
+  Inifile <<"dy=" << sp[1] << std::endl ;
+  Inifile <<"dz=" << sp[2] << std::endl ;
 
   // close file 
   Inifile.close();
@@ -878,100 +943,38 @@ PetscErrorCode RealTimeThermalImaging::WriteIni( const char * OutputDir)
 int main( int argc, char* argv[] )
 {
   PetscErrorCode ierr;
-  PetscInt       rank;
 
   /* Initialize Petsc */
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);CHKERRQ(ierr); 
   PetscFunctionBegin;
-  ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank); CHKERRQ(ierr);
 
   /* Initialize Main Class */
   RealTimeThermalImaging MRTI;
 
-  //error check
-  if( argc < 4 )
-    {
-     std::cerr << "Usage: " << argv[0] <<
-                  " ExamPath DirId OutputDir [options] "   << std::endl;
-     std::cerr << "Available options: [default value]"     << std::endl ; 
-     std::cerr << "-ntime     Number of Time Points: "     << ntime   << std::endl ;
-     std::cerr << "-noffset   Time offset to begin with: " << noffset << std::endl ;
-     std::cerr << "-necho     Number of echo Times: "      << necho   << std::endl ;
-     std::cerr << "-nslice    Number of slices: "          << nslice  << std::endl ;
-     std::cerr << "-alpha     Alpha (ppm/degC): "          << alpha   << std::endl ;
-     std::cerr << "-maxdiff   filtering parameter: "       << maxdiff << std::endl ;
-     std::cerr << "-median    median filtering parameter: "<< median  << std::endl ;
-     std::cerr << "EchoTime and ImagingFrequency Optional\n" 
-              << " but may be input in case of any errors\n" ;
-     return EXIT_FAILURE;
-    }
-
-  // read input data
-  const char * ExamPath   =                             argv[1] ;
-  const char * OutputDir  =                             argv[3] ;
-  int DirId;   
-  try
-  { 
-     DirId                = boost::lexical_cast<int>(   argv[2]);
-  }
-  catch(const std::exception& e) //catch bad lexical cast
-  {
-     std::cout << "Error getting Command Line Values:\n"
-               << "\nExamPath  = " << argv[1]
-               << "\nDirId     = " << argv[2]
-               << "\nOutputDir = " << argv[3] << std::endl;
-     std::cout << e.what() << std::endl;
-     return EXIT_FAILURE;
-  }
-
   //get commandline options
-  ierr = MRTI.GetCommandLine();CHKERRQ(ierr); 
+  ierr = MRTI.GetCommandLine(argc, argv);CHKERRQ(ierr); 
 
-  // make sure the output directory exist, using the cross
-  // platform tools: itksys::SystemTools. In this case we select to create
-  // the directory if it does not exist yet.
-  //
-  // \index{itksys!SystemTools}
-  // \index{itksys!MakeDirectory}
-  // \index{SystemTools}
-  // \index{SystemTools!MakeDirectory}
-  // \index{MakeDirectory!SystemTools}
-  // \index{MakeDirectory!itksys}
-  itksys::SystemTools::MakeDirectory( OutputDir );
+  //get dicom header data and write it out
+  ierr = MRTI.GetHeaderData();CHKERRQ(ierr);
+  ierr = MRTI.WriteIni();CHKERRQ(ierr);
 
   //debugging...
   PetscTruth  flg,Debug=PETSC_FALSE;
   ierr = PetscOptionsGetTruth(PETSC_NULL,"-debug",&Debug,&flg);
   if(Debug) MRTI.DebugOn();
 
-  //get dicom header data and write it out
-  ierr = MRTI.GetHeaderData(ExamPath,DirId);CHKERRQ(ierr);
-  ierr = MRTI.WriteIni(OutputDir);CHKERRQ(ierr);
-
   //setup DA arrays for parallel processing
   ierr = MRTI.SetupDA();CHKERRQ(ierr);
 
-  // containers for phase data
-  std::vector< PhaseFilterType::Pointer >  
-            basephaseFilter(necho,PhaseFilterType::New()), // n-1 phase data
-         currentphaseFilter(necho,PhaseFilterType::New()); // current phase data
-
-  // containers for image pointers
-  // get base image first and prepare temperature image
-  std::vector< InputImageType::Pointer > baseImage(necho,NULL);
-  InputImageType::Pointer   net_Image = InputImageType::New();
-  net_Image->SetRegions( procRegion );
-  net_Image->Allocate();
-
   // Software Guide : EndCodeSnippet
-  switch(necho)
+  switch(MRTI.get_necho())
    {
     case 1: // 1 echo --> multiplane tmap
       ierr = MRTI.GeneratePRFTmap();CHKERRQ(ierr);
-    case 8: // 8 echo --> CSI
+    case 16: // 16 echo --> CSI
       ierr = MRTI.GenerateCSITmap();CHKERRQ(ierr);
     default: 
-     std::cerr << "Unknown echo times" << necho << std::endl ;
+     std::cerr << "Unknown echo times" << MRTI.get_necho() << std::endl ;
      return EXIT_FAILURE;
     break;
    }
