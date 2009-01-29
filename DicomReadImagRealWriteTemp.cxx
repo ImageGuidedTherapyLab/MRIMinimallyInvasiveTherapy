@@ -109,7 +109,8 @@ const double                       pi = 3.1415926535897931;
 typedef double                                                 InputPixelType;
 typedef float                                                 OutputPixelType;
 typedef itk::Image<  InputPixelType, Dimension >               InputImageType;
-typedef itk::Image< itk::Vector<InputPixelType,8>,Dimension>     CSIImageType;
+typedef itk::Image< itk::Vector< std::complex< InputPixelType > , 16 >,
+                                                  Dimension >    CSIImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
 typedef itk::ExtractImageFilter< InputImageType, InputImageType> 
                                                                ProcFilterType;
@@ -213,13 +214,31 @@ void WriteImage(InputImageType::Pointer Image,std::ostringstream &filename,
     {
     std::cout << ex; abort();
     }
-  PetscFunctionReturnVoid;
+  PetscFunctionReturnVoid();
 }
 // main data structure for thermal imaging
 class RealTimeThermalImaging 
 {
 public:
   RealTimeThermalImaging(); //default constructor
+  void DebugOn(); // enable debugging
+  PetscErrorCode GetCommandLine();//setup data structures from command line arguements
+  PetscErrorCode GetHeaderData(const char *,const int); //get dicom header info
+  PetscErrorCode SetupDA();       //setup structured grid infrastructure
+  PetscErrorCode FinalizeDA();    //close structured grid infrastructure
+  PetscErrorCode GenerateCSITmap(const char * OutputDir); // generate CSI TMAP
+  PetscErrorCode GeneratePRFTmap(const char * OutputDir); // generate PRF TMAP
+  // generate phase images from real imaginary
+  InputImageType::Pointer GetPhaseImage(PhaseFilterType::Pointer ,
+                                        std::vector<std::string>  &,
+                                        std::vector<std::string>  &); 
+  // generate the expected file of a given image acquisition set
+  PetscErrorCode RealTimeGenerateFileNames(const char * , const int , 
+                                           const int    , const int ,
+                                           const int    , const int ,
+                                         std::vector < std::vector < std::string > > &);
+  // write an ini file containing dicom header info
+  PetscErrorCode WriteIni( const char * );
 private:
   int ntime, median, noffset, necho, nslice;    // defaults
   PetscScalar alpha,maxdiff;
@@ -230,6 +249,13 @@ private:
   InputImageType::SizeType zeroFilterRadius, medianFilterRadius;
   // domain decomposition for DA data structures
   InputImageType::RegionType procRegion;
+  // dicom readers
+  ReaderType::Pointer  reader; 
+  ImageIOType::Pointer gdcmIO;
+  // structured grid infrastructure
+  DA             dac;
+  // error code
+  PetscErrorCode ierr;
 };
 // constructor
 #undef __FUNCT__
@@ -252,8 +278,8 @@ RealTimeThermalImaging::RealTimeThermalImaging()
   // Software Guide : EndLatex
   
   // Software Guide : BeginCodeSnippet
-  ReaderType::Pointer  reader = ReaderType::New();
-  ImageIOType::Pointer gdcmIO = ImageIOType::New();
+  reader = ReaderType::New();
+  gdcmIO = ImageIOType::New();
   reader->SetImageIO( gdcmIO );
 
   zeroFilterRadius[0] = 0; // radius along x
@@ -267,7 +293,6 @@ RealTimeThermalImaging::RealTimeThermalImaging()
 PetscErrorCode RealTimeThermalImaging::GetCommandLine()
 {
   PetscFunctionBegin;
-  PetscErrorCode ierr;
   /* Read options */
   ierr=PetscOptionsGetInt(PETSC_NULL,"-ntime",&ntime,PETSC_NULL);CHKERRQ(ierr);
   ierr=PetscOptionsGetInt(PETSC_NULL,"-necho",&necho,PETSC_NULL);CHKERRQ(ierr);
@@ -303,12 +328,13 @@ void RealTimeThermalImaging::DebugOn()
   PetscFunctionBegin;
   for (int jjj = 0 ; jjj < necho ; jjj ++ ) baseImage[jjj]->DebugOn();
   net_Image->DebugOn();
-  PetscFunctionReturnVoid;
+  PetscFunctionReturnVoid();
 }
 //get dicom header data
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::GetHeaderData"
-PetscErrorCode RealTimeThermalImaging::GetHeaderData()
+PetscErrorCode RealTimeThermalImaging::GetHeaderData(const char *ExamPath,
+                                                     const int DirId )
 {
   PetscFunctionBegin;
   // setup data structures to contain a list of file names for a single time 
@@ -365,7 +391,6 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
 
   /* Create distributed array and get vectors:
        use -da_view to print out info about the DA */
-  DA             dac;
   DAPeriodicType ptype = DA_NONPERIODIC;
   DAStencilType  stype = DA_STENCIL_BOX;
   ierr = DACreate3d(PETSC_COMM_WORLD,ptype,stype, size[0], size[1], size[2],
@@ -401,7 +426,7 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
   procRegion.SetSize(  proc_width  );
   procRegion.SetIndex( proc_start );
   // Software Guide : EndCodeSnippet
-  PetscFunctionReturnVoid;
+  PetscFunctionReturn(0);
 }
 // Free Petsc Data structures
 #undef __FUNCT__
@@ -410,12 +435,12 @@ PetscErrorCode RealTimeThermalImaging::FinalizeDA()
 {
   PetscFunctionBegin;
   ierr = DADestroy(dac);CHKERRQ(ierr);
-  PetscFunctionReturnVoid;
+  PetscFunctionReturn(0);
 }
 // generate proton resonance frequency thermal images
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::GeneratePRFTmap"
-PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
+PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap( const char * OutputDir)
 {
   PetscFunctionBegin;
   {
@@ -581,7 +606,7 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
 // generate CSI thermal images
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::GenerateCSITmap"
-PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
+PetscErrorCode RealTimeThermalImaging::GenerateCSITmap( const char * OutputDir)
 {
   PetscFunctionBegin;
 
@@ -737,9 +762,9 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
 #define __FUNCT__ "RealTimeThermalImaging::RealTimeGenerateFileNames"
 PetscErrorCode 
 RealTimeThermalImaging::RealTimeGenerateFileNames(const char * ExamPath, 
-                                                        const int DirId, 
-                                                        const int istep,
-                                                        const int necho,
+                                                  const int DirId, const int istep,
+                                                  const int nslice, const int necho,
+                                                  const int noffset,
                          std::vector < std::vector < std::string > > &filenames)
 {
    PetscFunctionBegin;
@@ -919,7 +944,7 @@ int main( int argc, char* argv[] )
   if(Debug) MRTI.DebugOn();
 
   //get dicom header data and write it out
-  ierr = MRTI.GetHeaderData();CHKERRQ(ierr);
+  ierr = MRTI.GetHeaderData(ExamPath,DirId);CHKERRQ(ierr);
   ierr = MRTI.WriteIni(OutputDir);CHKERRQ(ierr);
 
   //setup DA arrays for parallel processing

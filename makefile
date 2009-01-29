@@ -42,7 +42,5 @@ INCLUDE= $(PETSC_INCLUDE) $(ITK_INCLUDE)
 	@echo Compiling $<
 	$(PCC) $(PREC_FLAGS) $(PCC_FLAGS) $(ITK_CXXFLAGS) $(INCLUDE) -o $@ -c $<
 
-
-#DicomReadImagRealWriteTemp: DicomReadImagRealWriteTemp.cxx chkopts
 DicomReadImagRealWriteTemp: DicomReadImagRealWriteTemp.o chkopts
 	-${CLINKER} -o DicomReadImagRealWriteTemp DicomReadImagRealWriteTemp.o  ${PETSC_DM_LIB} ${ITK_LIB} 
