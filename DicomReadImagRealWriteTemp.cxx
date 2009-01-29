@@ -487,6 +487,8 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
   net_Image = InputImageType::New();
   net_Image->SetRegions( procRegion );
   net_Image->Allocate();
+  net_Image->SetSpacing( sp );
+  net_Image->SetOrigin( orgn);
   // Software Guide : EndCodeSnippet
   PetscFunctionReturn(0);
 }
@@ -524,9 +526,9 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
     // output base phase image as a place holder
     std::ostringstream basephase_filename;
     // output file
-    basephase_filename << OutputDir <<"/tmap";
+    basephase_filename << OutputDir <<"/tmap."<< rank << ".";
     OSSRealzeroright(basephase_filename,4,0,0);
-    basephase_filename << "."<< rank <<".vtk" ;
+    basephase_filename << ".vtk" ;
 
     WriteImage(baseImage,basephase_filename,zeroFilterRadius);
 
@@ -538,7 +540,7 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
   for( int iii = 1 ; iii <= ntime ; iii++)
    {
     // generate list of file names
-    RealTimeGenerateFileNames(0,filenames);
+    RealTimeGenerateFileNames(iii,filenames);
 
     // get images and header info
     double tmap_factor;
@@ -653,17 +655,17 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
    
     // output unfiltered tmap
     std::ostringstream unfiltered_filename;
-    unfiltered_filename << OutputDir <<"/unfiltered";
+    unfiltered_filename << OutputDir <<"/unfiltered."<< rank << ".";
     OSSRealzeroright(unfiltered_filename,4,0,iii);
-    unfiltered_filename << "."<< rank <<".vtk" ;
+    unfiltered_filename << ".vtk" ;
 
     WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
 
     // output filtered tmap
     std::ostringstream filtered_filename;
-    filtered_filename << OutputDir <<"/filtered";
+    filtered_filename << OutputDir <<"/filtered."<< rank << ".";
     OSSRealzeroright(filtered_filename,4,0,iii);
-    filtered_filename << "."<< rank <<".vtk" ;
+    filtered_filename << ".vtk" ;
 
     WriteImage(net_Image , filtered_filename , medianFilterRadius);
 
@@ -971,12 +973,13 @@ int main( int argc, char* argv[] )
    {
     case 1: // 1 echo --> multiplane tmap
       ierr = MRTI.GeneratePRFTmap();CHKERRQ(ierr);
+      break;
     case 16: // 16 echo --> CSI
       ierr = MRTI.GenerateCSITmap();CHKERRQ(ierr);
+      break;
     default: 
-     std::cerr << "Unknown echo times" << MRTI.get_necho() << std::endl ;
+     std::cerr << "Unknown echo times " << MRTI.get_necho() << std::endl ;
      return EXIT_FAILURE;
-    break;
    }
      
   /* Free memory */
