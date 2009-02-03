@@ -1,4 +1,4 @@
-include ${PETSC_DIR}/bmake/common/base
+include ${PETSC_DIR}/conf/base
 
 .PHONY: tags
 
