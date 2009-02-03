@@ -109,7 +109,7 @@ const double                       pi = 3.1415926535897931;
 typedef double                                                 InputPixelType;
 typedef float                                                 OutputPixelType;
 typedef itk::Image<  InputPixelType, Dimension >               InputImageType;
-typedef itk::Image< itk::Vector< std::complex< InputPixelType > , 16 >,
+typedef itk::Image< itk::Vector< itk::Vector< InputPixelType > , 16 >,
                                                   Dimension >    CSIImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
 typedef itk::ExtractImageFilter< InputImageType, InputImageType> 
@@ -121,6 +121,7 @@ typedef itk::ScalarToArrayCastImageFilter< InputImageType, CSIImageType >
 typedef itk::ImageSeriesReader<      InputImageType >              ReaderType;
 typedef itk::ImageFileWriter<       OutputImageType >              WriterType;
 typedef itk::GDCMImageIO                                          ImageIOType;
+typedef itk::ImageRegionConstIterator< CSIImageType >         CSIIteratorType;
 typedef itk::ImageSliceConstIteratorWithIndex< InputImageType >  
                                                             InputIteratorType;
 typedef itk::ImageSliceIteratorWithIndex< InputImageType > BufferIteratorType;
@@ -680,152 +681,162 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
   PetscFunctionBegin;
 
   // setup vector image for CSI computation
-  std::vector< InputImageType::Pointer > currentImage(necho,NULL);
+  CSIImageType::Pointer currentImage;
+
   ImageCastFilterType::Pointer castFilter = ImageCastFilterType::New() ;
   for (int jjj = 0 ; jjj < necho ; jjj ++ )
      castFilter->PushBackInput( currentImage[jjj] ) ;
 
   std::vector< std::vector<std::string> > filenames( 2 * necho , 
                              std::vector< std::string >::vector(nslice,"") );
-  //// loop over time instances
-  //for( int iii = 0 ; iii <= ntime ; iii++)
-  // {
-  //  // generate list of file names
-  //  RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice,necho,noffset,filenames);
+  // loop over time instances
+  for( int iii = 0 ; iii <= ntime ; iii++)
+   {
+    // generate list of file names
+    RealTimeGenerateFileNames(ExamPath,DirId,iii,nslice,necho,noffset,filenames);
 
-  //  // get images and header info
-  //  double tmap_factor;
-  //  for (int jjj = 0 ; jjj < necho ; jjj ++ )
-  //    {
-  //     currentImage[jjj] = GetPhaseImage(currentphaseFilter[jjj],
-  //                                       reader,procRegion,filenames[2*jjj  ],
-  //                                                         filenames[2*jjj+1] );
-  //     // Software Guide : BeginLatex
-  //     // 
-  //     // We can trigger the reading process by calling the \code{Update()}
-  //     // method on the series reader. It is wise to put this invocation inside
-  //     // a \code{try/catch} block since the process may eventually throw
-  //     // exceptions.
-  //     //
-  //     // Software Guide : EndLatex
-  //   
-  //     // scratch storage for header value
-  //     std::string value; 
-  //     // Get Echo Time 
-  //     std::string echotimekey = "0018|0081";
-  //     double echotime;
-  //     try
-  //     {  
-  //        gdcmIO->GetValueFromTag(echotimekey, value) ;
-  //        echotime=boost::lexical_cast<double>(value);
-  //     }
-  //     catch(const std::exception& e) //catch bad lexical cast
-  //     {
-  //        std::cout<<"Error getting echo time " << " (" << echotimekey << ")\n";
-  //        std::cout<<"value returned is "<<value<< "\n";
-  //        std::cout<<e.what() << std::endl;
-  //        ierr = PetscOptionsGetScalar(PETSC_NULL,"-echotime",&echotime,PETSC_NULL);
-  //        CHKERRQ(ierr);
-  //        std::cout << "using value from command line "<< echotime << "\n";
-  //     }
-  //     std::string imagfreqkey = "0018|0084";
-  //     double imagfreq;
-  //     try
-  //     {  
-  //        gdcmIO->GetValueFromTag(imagfreqkey, value) ;
-  //        // trailing space on string causing cast error
-  //        value.erase(value.find(' ')) ; 
-  //        imagfreq=boost::lexical_cast<double>(value);
-  //     }
-  //     catch(const std::exception& e) //catch bad lexical cast
-  //     {
-  //        std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
-  //        std::cout << "value returned is "<<value << "\n";
-  //        std::cout << e.what() << std::endl;
-  //        ierr = PetscOptionsGetScalar(PETSC_NULL,"-imagfreq",&imagfreq,PETSC_NULL);
-  //        CHKERRQ(ierr);
-  //        std::cout << "using value from command line "<< imagfreq << "\n";
-  //     }
-  //     // misc info
-  //     // echo data
-  //     std::string studyIdkey  = "0020|0010" ;
-  //     std::string seriesIdkey = "0020|0011" ;
-  //     gdcmIO->GetValueFromTag(studyIdkey  , value) ;
-  //     std::cout << "Study Id " << value  ;
-  //     gdcmIO->GetValueFromTag(seriesIdkey , value) ;
-  //     std::cout << " Series Number " << value   << "\n" ;
-  //     std::cout << "alpha " << alpha  << " (ppm/degC) "
-  //               << "maxdiff " << maxdiff << " (degC) "
-  //               << "echo time " << echotime << " (ms) "
-  //               << "imaging freq " << imagfreq << " (MHz) \n";
-  //     // faster to multiply
-  //     tmap_factor =  1.0/(2.0*pi*imagfreq*alpha*echotime*1.e-3) ;
-  //    }
+    // get images and header info
+    for (int jjj = 0 ; jjj < necho ; jjj ++ )
+      {
+       currentImage[jjj] = GetPhaseImage(currentphaseFilter[jjj],
+                                         reader,procRegion,filenames[2*jjj  ],
+                                                           filenames[2*jjj+1] );
+       // Software Guide : BeginLatex
+       // 
+       // We can trigger the reading process by calling the \code{Update()}
+       // method on the series reader. It is wise to put this invocation inside
+       // a \code{try/catch} block since the process may eventually throw
+       // exceptions.
+       //
+       // Software Guide : EndLatex
+     
+       // scratch storage for header value
+       std::string value; 
+       // Get Echo Time 
+       std::string echotimekey = "0018|0081";
+       double echotime;
+       try
+       {  
+          gdcmIO->GetValueFromTag(echotimekey, value) ;
+          echotime=boost::lexical_cast<double>(value);
+       }
+       catch(const std::exception& e) //catch bad lexical cast
+       {
+          std::cout<<"Error getting echo time " << " (" << echotimekey << ")\n";
+          std::cout<<"value returned is "<<value<< "\n";
+          std::cout<<e.what() << std::endl;
+          ierr = PetscOptionsGetScalar(PETSC_NULL,"-echotime",&echotime,PETSC_NULL);
+          CHKERRQ(ierr);
+          std::cout << "using value from command line "<< echotime << "\n";
+       }
+       std::string imagfreqkey = "0018|0084";
+       double imagfreq;
+       try
+       {  
+          gdcmIO->GetValueFromTag(imagfreqkey, value) ;
+          // trailing space on string causing cast error
+          value.erase(value.find(' ')) ; 
+          imagfreq=boost::lexical_cast<double>(value);
+       }
+       catch(const std::exception& e) //catch bad lexical cast
+       {
+          std::cout << "Error getting Imaging Freq"<<" ("<<imagfreqkey << ")\n";
+          std::cout << "value returned is "<<value << "\n";
+          std::cout << e.what() << std::endl;
+          ierr = PetscOptionsGetScalar(PETSC_NULL,"-imagfreq",&imagfreq,PETSC_NULL);
+          CHKERRQ(ierr);
+          std::cout << "using value from command line "<< imagfreq << "\n";
+       }
+       // misc info
+       // echo data
+       std::string studyIdkey  = "0020|0010" ;
+       std::string seriesIdkey = "0020|0011" ;
+       gdcmIO->GetValueFromTag(studyIdkey  , value) ;
+       std::cout << "Study Id " << value  ;
+       gdcmIO->GetValueFromTag(seriesIdkey , value) ;
+       std::cout << " Series Number " << value   << "\n" ;
+       std::cout << "alpha " << alpha  << " (ppm/degC) "
+                 << "maxdiff " << maxdiff << " (degC) "
+                 << "echo time " << echotime << " (ms) "
+                 << "imaging freq " << imagfreq << " (MHz) \n";
+      }
 
-  // 
-  //  // Software Guide : BeginLatex
-  //  // setup real, imaginary, base phase, and temperature map iterators
-  //  // The const slice iterator walks the 3D input image, and the non-const
-  //  // linear iterator walks the 2D output image. The iterators are initialized
-  //  // to walk the same linear path through a slice.  Remember that the
-  //  // \emph{second} direction of the slice iterator defines the direction that
-  //  // linear iteration walks within a slice
-  //  InputIteratorType    currIt(currentImage[0],currentImage[0]->GetRequestedRegion());
-  //  BufferIteratorType   baseIt(   baseImage[0],   baseImage[0]->GetRequestedRegion());
-  //  BufferIteratorType   net_It(   net_Image   ,      net_Image->GetRequestedRegion());
-  // 
-  //  currIt.SetFirstDirection(  0 );   currIt.SetSecondDirection( 1 );
-  //  baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
-  //  net_It.SetFirstDirection(  0 );   net_It.SetSecondDirection( 1 );
-  // 
-  //  // Software Guide : EndCodeSnippet 
-  //  // set iterators to the beginning
-  //  currIt.GoToBegin();
-  //  baseIt.GoToBegin();
-  //  net_It.GoToBegin();
-  //  // compute net phase difference
-  //  while( !net_It.IsAtEnd() )
-  //    {
-  //    while ( !net_It.IsAtEndOfSlice() )
-  //      {
-  //      while ( !net_It.IsAtEndOfLine() )
-  //        {
-  //        net_It.Set(
-  //           net_It.Get() +  ( currIt.Get() - baseIt.Get() ) * tmap_factor
-  //                  );
-  //        // update the base to contain the n-1 image for next time
-  //        baseIt.Set( currIt.Get() );
-  //        ++currIt;
-  //        ++baseIt;
-  //        ++net_It;
-  //        }
-  //        currIt.NextLine();
-  //        baseIt.NextLine();
-  //        net_It.NextLine();
-  //      }
-  //    // get next slice
-  //    currIt.NextSlice(); 
-  //    net_It.NextSlice();
-  //    baseIt.NextSlice();
-  //    }
-  // 
-  //  // output unfiltered tmap
-  //  std::ostringstream unfiltered_filename;
-  //  unfiltered_filename << OutputDir <<"/unfiltered";
-  //  OSSRealzeroright(unfiltered_filename,4,0,iii);
-  //  unfiltered_filename << "."<< rank <<".vtk" ;
+    // Software Guide : BeginLatex
+    //
+    // \index{Iterators!construction of} \index{Iterators!and image regions} The
+    // necessary images and region definitions are now in place.  All that is
+    // left to do is to create the iterators and perform the copy.  Note that
+    // image iterators are not accessed via smart pointers so they are
+    // light-weight objects that are instantiated on the stack.  Also notice how
+    // the input and output iterators are defined over the \emph{same
+    // corresponding region}.  Though the images are different sizes, they both
+    // contain the same target subregion.
+    //
+    // Software Guide : EndLatex
+    
+    // Software Guide : BeginCodeSnippet
+    CSIIteratorType realIt( realImage, realImage->GetRequestedRegion() );
+    CSIIteratorType imagIt( imagImage, imagImage->GetRequestedRegion() );
+    
+    // initialize petsc matlab-interface
+    Vec            RealPixel,ImagPixel,MapPixel;
+    ierr = PetscObjectSetName((PetscObject)RealPixel,"RealPixel");CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)ImagPixel,"ImagPixel");CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)MapPixel,"MapPixel");CHKERRQ(ierr);
 
-  //  WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
+    ierr= VecCreateSeq(PETSC_COMM_SELF,3,&MapPixel);
+    ierr= VecGetArray(MapPixel,&outputpixel);CHKERRQ(ierr);
+    /*
+       Get a pointer to vector data.
+         - For default PETSc vectors, VecGetArray() returns a pointer to
+           the data array.  Otherwise, the routine is implementation dependent.
+         - You MUST call VecRestoreArray() when you no longer need access to
+           the array.
+    */
 
-  //  // output filtered tmap
-  //  std::ostringstream filtered_filename;
-  //  filtered_filename << OutputDir <<"/filtered";
-  //  OSSRealzeroright(filtered_filename,4,0,iii);
-  //  filtered_filename << "."<< rank <<".vtk" ;
+    for ( inputIt.GoToBegin(); !inputIt.IsAtEnd(); ++inputIt)
+      {
+       // create petsc vectors as points to itk iterators
+       ierr= VecCreateSeqWithArray(PETSC_COMM_SELF,16,&realIt.Get(),&RealPixel);
+       CHKERQ(ierr);
+       ierr= VecCreateSeqWithArray(PETSC_COMM_SELF,16,&imagIt.Get(),&ImagPixel);
+       CHKERQ(ierr);
 
-  //  WriteImage(net_Image , filtered_filename , medianFilterRadius);
+       ierr= PetscMatlabEnginePut(PETSC_MATLAB_ENGINE_(comm),(PetscObject)RealPixel);CHKERRQ(ierr);
+       ierr= PetscMatlabEnginePut(PETSC_MATLAB_ENGINE_(comm),(PetscObject)ImagPixel);CHKERRQ(ierr);
+       ierr= PetscMatlabEngineEvaluate(PETSC_MATLAB_ENGINE_(comm),"MapPixel=MapCSI(RealPixel,ImagPixel,%18.16e)",lambda);CHKERRQ(ierr);
+       ierr= PetscMatlabEngineGet(PETSC_MATLAB_ENGINE_(comm),(PetscObject)MapPixel);CHKERRQ(ierr);
 
-  // } // end loop over time instances
+       ierr = VecSetValuesBlocked(OutputDA,3,index,outputpixel,PETSC_INSERT); 
+       // cleanup petsc 
+       ierr = VecDestroy(RealPixel);CHKERRQ(ierr);
+       ierr = VecDestroy(ImagPixel);CHKERRQ(ierr);
+
+      }
+    // Software Guide : EndCodeSnippet
+
+    // cleanup petsc 
+    ierr = VecDestroy( MapPixel);CHKERRQ(ierr);
+   
+   
+    // output unfiltered tmap
+    std::ostringstream unfiltered_filename;
+    unfiltered_filename << OutputDir <<"/unfiltered";
+    OSSRealzeroright(unfiltered_filename,4,0,iii);
+    unfiltered_filename << "."<< rank <<".vtk" ;
+
+    WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
+
+    // output filtered tmap
+    std::ostringstream filtered_filename;
+    filtered_filename << OutputDir <<"/filtered";
+    OSSRealzeroright(filtered_filename,4,0,iii);
+    filtered_filename << "."<< rank <<".vtk" ;
+
+    WriteImage(net_Image , filtered_filename , medianFilterRadius);
+
+   } // end loop over time instances
+
   PetscFunctionReturn(0);
 }
 // subroutine to generate dicom filenames
