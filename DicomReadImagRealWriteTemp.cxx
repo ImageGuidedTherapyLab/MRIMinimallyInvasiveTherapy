@@ -152,9 +152,12 @@ InputImageType::Pointer GetImageData(T ITKPointer, std::vector<std::string>  &fi
      for (unsigned int i = 0; i < filenames.size(); i++)
       {
        if(access(filenames[i].c_str(),R_OK))
-         std::cout << filenames[i] << " NOT FOUND\n";
+         std::cout << filenames[i] << " NOT FOUND" << std::endl;
+
        else 
-         std::cout << filenames[i] << " found....\n";
+         std::cout << filenames[i].substr( 
+                              filenames[i].rfind('/')+1, std::string::npos ) 
+                   << " found...." << std::endl;
       }
      try
        {
@@ -477,7 +480,7 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
   DAPeriodicType ptype = DA_NONPERIODIC;
   DAStencilType  stype = DA_STENCIL_BOX;
   ierr = DACreate3d(PETSC_COMM_WORLD,ptype,stype, size[0], size[1], size[2],
-                    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,1,1,
+                    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,necho,1,
                     PETSC_NULL,PETSC_NULL,PETSC_NULL,&dac);CHKERRQ(ierr);
   ierr = DAGetCorners(dac,&ProcStart[0],&ProcStart[1],&ProcStart[2], 
                           &ProcWidth[0],&ProcWidth[1],&ProcWidth[2]); 
@@ -559,7 +562,7 @@ void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
   // get pointer to petsc data structures
   PetscScalar   ****MapPixel;
   VecOutputImageType::PixelType   pixelValue;
-  DAVecGetArray(dac,localVec,&MapPixel);
+  DAVecGetArray(dac,imageVec,&MapPixel);
 
   /*
      loop through parallel data structures
@@ -580,7 +583,7 @@ void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
     }
     outputIt.NextSlice(); // get next slice
   }
-  DAVecRestoreArray(dac,localVec,&MapPixel);
+  DAVecRestoreArray(dac,imageVec,&MapPixel);
 
   // setup writer
   VecWriterType::Pointer writer = VecWriterType::New();
@@ -838,7 +841,6 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
         CHKERRQ(ierr);
         std::cout << "using value from command line "<< imagfreq[jjj] << "\n";
      }
-     // misc info
      // echo data
      std::string studyIdkey  = "0020|0010" ;
      std::string seriesIdkey = "0020|0011" ;
@@ -846,13 +848,14 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
      std::cout << "Study Id " << value  ;
      gdcmIO->GetValueFromTag(seriesIdkey , value) ;
      std::cout << " Series Number " << value   << "\n" ;
-     std::cout << "echo time " << echotime[jjj] << " (ms) "
-               << "imaging freq " << imagfreq[jjj] << " (MHz) \n";
+     std::cout << "echo time " << echotime[jjj] << " (ms) " << std::endl ;
     }
 
   //Define gamma*B0 and the echo spacing
   PetscScalar      gB0=imagfreq[0], esp=echotime[1]-echotime[0];
-
+  std::cout << std::endl  << "echo spacing " << esp   << " (ms) "
+                          << "imaging freq " << gB0   << " (MHz) "
+                          << "ntime        " << ntime << std::endl;
   // containers for real and imaginary data
   CSIFilterType::Pointer   realImageFilter=CSIFilterType::New(),// real images
                            imagImageFilter=CSIFilterType::New();// imag images
@@ -863,6 +866,7 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
   // loop over time instances
   for( int iii = 0 ; iii <= ntime ; iii++)
    {
+
     // get image data
     realImages = GetCSIImage(realImageFilter,iii,0); //real images
     imagImages = GetCSIImage(imagImageFilter,iii,1); //imag images
@@ -892,8 +896,11 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
 
     // get pointer to petsc data structures
     PetscScalar   ****MapPixel;
-    DAVecGetArray(dac,localVec,&MapPixel);
+    DAGetLocalVector(dac,&localVec);
+    DAVecGetArrayDOF(dac,localVec,&MapPixel);
+    //ierr = PetscObjectSetName((PetscObject)MapPixel,"MapPixel");CHKERRQ(ierr);
 
+    //PetscInt PixelCounter = 0 ; 
     /*
        loop through parallel data structures
     */
@@ -903,12 +910,16 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
       {
         for (PetscInt i=ProcStart[0]; i<ProcStart[0]+ProcWidth[0]; i++) 
         {
+          //std::cout << "pixel # " << PixelCounter++ << std::endl;
           ierr= PetscMatlabEnginePutArray(PETSC_MATLAB_ENGINE_WORLD,
                                           necho,1,&realIt.Get()[0],
                                                      "RealPixel");CHKERRQ(ierr);
           ierr= PetscMatlabEnginePutArray(PETSC_MATLAB_ENGINE_WORLD,
                                           necho,1,&imagIt.Get()[0],
                                                      "ImagPixel");CHKERRQ(ierr);
+          ierr= PetscMatlabEnginePutArray(PETSC_MATLAB_ENGINE_WORLD,
+                                          nvarplot,1,MapPixel[k][j][i],
+                                                     "MapPixel");CHKERRQ(ierr);
           ierr= PetscMatlabEngineEvaluate(PETSC_MATLAB_ENGINE_WORLD,
                 "MapPixel=MapCSI(RealPixel,ImagPixel,%18.16e,%18.16e)",gB0,esp);
           CHKERRQ(ierr);
@@ -927,7 +938,8 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
     /*
        Restore vector
     */
-    DAVecRestoreArray(dac,localVec,&MapPixel);
+    DAVecRestoreArrayDOF(dac,localVec,&MapPixel);
+    DARestoreLocalVector(dac,&localVec);
    
     // gather the image buffer on processor zero
     VecScatterBegin(gather,localVec,imageVec,INSERT_VALUES,SCATTER_FORWARD);
