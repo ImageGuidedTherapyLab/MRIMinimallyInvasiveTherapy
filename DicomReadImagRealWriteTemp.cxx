@@ -113,6 +113,8 @@ typedef itk::Image< InputPixelType, Dimension >               InputImageType;
 typedef itk::Image< itk::Vector< PetscScalar , maxCSIecho >,
                                                  Dimension >    CSIImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
+typedef itk::Image< itk::Vector< OutputPixelType , nvarplot > , Dimension > 
+                                                           VecOutputImageType;
 typedef itk::ExtractImageFilter< InputImageType, InputImageType> 
                                                                ProcFilterType;
 typedef itk::Atan2ImageFilter<InputImageType,InputImageType,InputImageType>
@@ -121,8 +123,10 @@ typedef itk::ScalarToArrayCastImageFilter< InputImageType, CSIImageType >
                                                                 CSIFilterType;
 typedef itk::ImageSeriesReader<      InputImageType >              ReaderType;
 typedef itk::ImageFileWriter<       OutputImageType >              WriterType;
+typedef itk::ImageFileWriter<    VecOutputImageType >           VecWriterType;
 typedef itk::GDCMImageIO                                          ImageIOType;
 typedef itk::ImageSliceConstIteratorWithIndex< CSIImageType > CSIIteratorType;
+typedef itk::ImageSliceIteratorWithIndex< VecOutputImageType > VecOutIterType;
 typedef itk::ImageSliceConstIteratorWithIndex< InputImageType >  
                                                             InputIteratorType;
 typedef itk::ImageSliceIteratorWithIndex< InputImageType > BufferIteratorType;
@@ -256,6 +260,8 @@ private:
   // CSI Vector values images
   CSIImageType::Pointer GetCSIImage(CSIFilterType::Pointer, const int , 
                                                             const int );
+  // write a paraview file from the DA data structures
+  void WriteDAImage(std::ostringstream &);
   int necho, ntime, median, noffset, nslice;    // defaults
   PetscScalar alpha,maxdiff;
   // dimensions for all images
@@ -531,27 +537,28 @@ PetscErrorCode RealTimeThermalImaging::FinalizeDA()
 // subroutine to write the image to disk
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::WriteDAImage"
-void WriteDAImage(std::ostringstream &filename)
+void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
 {
   PetscFunctionBegin;
 
   // allocate memory for the output image
-  CSIImageType::RegionType region;
+  VecOutputImageType::RegionType region;
   region.SetSize(  size  );
-  CSIImageType::Pointer outputImage = CSIImageType::New();
+  VecOutputImageType::Pointer outputImage = VecOutputImageType::New();
   outputImage->SetRegions( region );
   outputImage->Allocate();
   // set image dimensions
-  outputImage->SetSpacing(spacing);
-  outputImage->SetOrigin(origin);
+  outputImage->SetSpacing(sp);
+  outputImage->SetOrigin(orgn);
     
   // initialize ITK iterators
-  OutIterType    outputIt( outputImage, outputImage->GetRequestedRegion() );
+  VecOutIterType    outputIt( outputImage, outputImage->GetRequestedRegion() );
   outputIt.SetFirstDirection(  0 ); outputIt.SetSecondDirection( 1 );
   outputIt.GoToBegin();
 
   // get pointer to petsc data structures
   PetscScalar   ****MapPixel;
+  VecOutputImageType::PixelType   pixelValue;
   DAVecGetArray(dac,localVec,&MapPixel);
 
   /*
@@ -563,11 +570,10 @@ void WriteDAImage(std::ostringstream &filename)
     {
       for (PetscInt i=0; i<size[0]; i++) 
       {
-        //OutImageType::PixelType   pixelValue;
-        //for(ivar = 0; ivar < nvarplot ; ivar++) 
-        //            pixelValue[ivar] = MapPixel[k][j][i][ivar];
-        //outputIt.Set( pixelValue ) ; 
-        outputIt.Set( &MapPixel[k][j][i][0] ) ; 
+        //outputIt.Set( &MapPixel[k][j][i][0] ) ; 
+        for(PetscInt ivar = 0; ivar < nvarplot ; ivar++) 
+                    pixelValue[ivar] = MapPixel[k][j][i][ivar];
+        outputIt.Set( pixelValue ) ; 
         ++outputIt; // update iterators
       }
       outputIt.NextLine(); // get next line
@@ -577,7 +583,7 @@ void WriteDAImage(std::ostringstream &filename)
   DAVecRestoreArray(dac,localVec,&MapPixel);
 
   // setup writer
-  WriterType::Pointer writer = WriterType::New();
+  VecWriterType::Pointer writer = VecWriterType::New();
   writer->SetFileName( filename.str() );
   std::cout << "writing " << filename.str() << std::endl;
   writer->SetInput( outputImage );
@@ -624,7 +630,22 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
 
   }
 
-  //EnhanceSNR(baseImage);
+  bool EnhanceSNR=true;
+  if(EnhanceSNR)
+   {
+     for( int iii = 1 ; iii <= nslice ; iii++)
+      {
+       ierr= PetscMatlabEnginePutArray(PETSC_MATLAB_ENGINE_WORLD,
+                                 size[0],size[1],baseImage->GetBufferPointer(),
+                                                  "PixelBuffer");CHKERRQ(ierr);
+       ierr= PetscMatlabEngineEvaluate(PETSC_MATLAB_ENGINE_WORLD,
+                             "BufferOut=EnhanceSNR(PixelBuffer)");
+       CHKERRQ(ierr);
+       ierr= PetscMatlabEngineGetArray(PETSC_MATLAB_ENGINE_WORLD,
+                                 size[0],size[1],baseImage->GetBufferPointer(),
+                                                  "BufferOut");CHKERRQ(ierr);
+      }
+   }
 
   // loop over time instances
   for( int iii = 1 ; iii <= ntime ; iii++)
