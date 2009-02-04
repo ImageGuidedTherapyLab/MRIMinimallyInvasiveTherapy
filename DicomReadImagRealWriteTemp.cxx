@@ -517,7 +517,7 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
 }
 // Free Petsc Data structures
 #undef __FUNCT__
-#define __FUNCT__ "FinalizeDA"
+#define __FUNCT__ "RealTimeThermalImaging::FinalizeDA"
 PetscErrorCode RealTimeThermalImaging::FinalizeDA()
 {
   PetscFunctionBegin;
@@ -527,6 +527,69 @@ PetscErrorCode RealTimeThermalImaging::FinalizeDA()
   ierr = VecDestroy(localVec);CHKERRQ(ierr);
   ierr = DADestroy(dac);CHKERRQ(ierr);
   PetscFunctionReturn(0);
+}
+// subroutine to write the image to disk
+#undef __FUNCT__
+#define __FUNCT__ "RealTimeThermalImaging::WriteDAImage"
+void WriteDAImage(std::ostringstream &filename)
+{
+  PetscFunctionBegin;
+
+  // allocate memory for the output image
+  CSIImageType::RegionType region;
+  region.SetSize(  size  );
+  CSIImageType::Pointer outputImage = CSIImageType::New();
+  outputImage->SetRegions( region );
+  outputImage->Allocate();
+  // set image dimensions
+  outputImage->SetSpacing(spacing);
+  outputImage->SetOrigin(origin);
+    
+  // initialize ITK iterators
+  OutIterType    outputIt( outputImage, outputImage->GetRequestedRegion() );
+  outputIt.SetFirstDirection(  0 ); outputIt.SetSecondDirection( 1 );
+  outputIt.GoToBegin();
+
+  // get pointer to petsc data structures
+  PetscScalar   ****MapPixel;
+  DAVecGetArray(dac,localVec,&MapPixel);
+
+  /*
+     loop through parallel data structures
+  */
+  for (PetscInt k=0; k<size[2]; k++) 
+  {
+    for (PetscInt j=0; j<size[1]; j++) 
+    {
+      for (PetscInt i=0; i<size[0]; i++) 
+      {
+        //OutImageType::PixelType   pixelValue;
+        //for(ivar = 0; ivar < nvarplot ; ivar++) 
+        //            pixelValue[ivar] = MapPixel[k][j][i][ivar];
+        //outputIt.Set( pixelValue ) ; 
+        outputIt.Set( &MapPixel[k][j][i][0] ) ; 
+        ++outputIt; // update iterators
+      }
+      outputIt.NextLine(); // get next line
+    }
+    outputIt.NextSlice(); // get next slice
+  }
+  DAVecRestoreArray(dac,localVec,&MapPixel);
+
+  // setup writer
+  WriterType::Pointer writer = WriterType::New();
+  writer->SetFileName( filename.str() );
+  std::cout << "writing " << filename.str() << std::endl;
+  writer->SetInput( outputImage );
+  try
+    {
+    writer->Update();
+    }
+  catch (itk::ExceptionObject &ex)
+    {
+    std::cout << ex; abort();
+    }
+  PetscFunctionReturnVoid();
 }
 // generate proton resonance frequency thermal images
 #undef __FUNCT__
@@ -850,20 +913,14 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
     VecScatterEnd(gather,localVec,imageVec,INSERT_VALUES,SCATTER_FORWARD);
   
     // output unfiltered tmap
-    std::ostringstream unfiltered_filename;
-    unfiltered_filename << OutputDir <<"/unfiltered";
-    OSSRealzeroright(unfiltered_filename,4,0,iii);
-    unfiltered_filename << "."<< rank <<".vtk" ;
-
-    //WriteImage(net_Image , unfiltered_filename , zeroFilterRadius);
-
-    // output filtered tmap
-    std::ostringstream filtered_filename;
-    filtered_filename << OutputDir <<"/filtered";
-    OSSRealzeroright(filtered_filename,4,0,iii);
-    filtered_filename << "."<< rank <<".vtk" ;
-
-    //WriteImage(net_Image , filtered_filename , medianFilterRadius);
+    if(!rank) // write image from root process
+     {
+       std::ostringstream unfiltered_filename;
+       unfiltered_filename << OutputDir <<"/unfiltered";
+       OSSRealzeroright(unfiltered_filename,4,0,iii);
+       unfiltered_filename << "."<< rank <<".vtk" ;
+       WriteDAImage(unfiltered_filename);
+     }
 
    } // end loop over time instances
 
