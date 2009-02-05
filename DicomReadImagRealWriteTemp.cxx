@@ -105,7 +105,7 @@
 static char help[] = "Tests DAGetInterpolation for nonuniform DA coordinates.\n\n";
 const unsigned int          Dimension = 3;
 const double                       pi = 3.1415926535897931;
-const PetscInt maxCSIecho=16,nvarplot=6;
+const PetscInt maxCSIecho=2,nvarplot=6;
 // useful typedefs
 typedef PetscScalar                                            InputPixelType;
 typedef float                                                 OutputPixelType;
@@ -533,7 +533,7 @@ PetscErrorCode RealTimeThermalImaging::FinalizeDA()
   // destroy scatter context, vector, when no longer needed
   ierr = VecScatterDestroy(gather);CHKERRQ(ierr);
   ierr = VecDestroy(imageVec);CHKERRQ(ierr);
-  ierr = VecDestroy(localVec);CHKERRQ(ierr);
+  //ierr = VecDestroy(localVec);CHKERRQ(ierr); DA will destroy this
   ierr = DADestroy(dac);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -562,7 +562,7 @@ void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
   // get pointer to petsc data structures
   PetscScalar   ****MapPixel;
   VecOutputImageType::PixelType   pixelValue;
-  DAVecGetArray(dac,imageVec,&MapPixel);
+  DAVecGetArrayDOF(dac,imageVec,&MapPixel);
 
   /*
      loop through parallel data structures
@@ -583,7 +583,7 @@ void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
     }
     outputIt.NextSlice(); // get next slice
   }
-  DAVecRestoreArray(dac,imageVec,&MapPixel);
+  DAVecRestoreArrayDOF(dac,imageVec,&MapPixel);
 
   // setup writer
   VecWriterType::Pointer writer = VecWriterType::New();
@@ -900,7 +900,7 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
     DAVecGetArrayDOF(dac,localVec,&MapPixel);
     //ierr = PetscObjectSetName((PetscObject)MapPixel,"MapPixel");CHKERRQ(ierr);
 
-    //PetscInt PixelCounter = 0 ; 
+    PetscInt PixelCounter = 0 ; 
     /*
        loop through parallel data structures
     */
