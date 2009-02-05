@@ -105,7 +105,7 @@
 static char help[] = "Tests DAGetInterpolation for nonuniform DA coordinates.\n\n";
 const unsigned int          Dimension = 3;
 const double                       pi = 3.1415926535897931;
-const PetscInt maxCSIecho=2,nvarplot=6;
+const PetscInt maxCSIecho=16,nvarplot=6;
 // useful typedefs
 typedef PetscScalar                                            InputPixelType;
 typedef float                                                 OutputPixelType;
@@ -134,7 +134,7 @@ typedef itk::ImageSliceIteratorWithIndex<OutputImageType > OutputIteratorType;
 
 // subroutine to read the dicom data in real-time
 template<class T>
-InputImageType::Pointer GetImageData(T ITKPointer, std::vector<std::string>  &filenames )
+InputImageType::Pointer GetImageData(T ITKPointer, const PetscInt rank,  std::vector<std::string>  &filenames )
 {
   // Software Guide : BeginLatex
   // 
@@ -148,16 +148,18 @@ InputImageType::Pointer GetImageData(T ITKPointer, std::vector<std::string>  &fi
   bool DataNotRead = true;
   while(DataNotRead)
     {
-     std::cout << std::endl ; 
      for (unsigned int i = 0; i < filenames.size(); i++)
       {
        if(access(filenames[i].c_str(),R_OK))
-         std::cout << filenames[i] << " NOT FOUND" << std::endl;
-
+        {
+         if(!rank) std::cout << filenames[i] << " NOT FOUND" << std::endl;
+        }
        else 
-         std::cout << filenames[i].substr( 
+        {
+         if(!rank) std::cout << filenames[i].substr( 
                               filenames[i].rfind('/')+1, std::string::npos ) 
                    << " found...." << std::endl;
+        }
       }
      try
        {
@@ -170,6 +172,7 @@ InputImageType::Pointer GetImageData(T ITKPointer, std::vector<std::string>  &fi
        sleep(1);
        }
     }
+  std::cout << std::flush ;
   return ITKPointer->GetOutput();
 }
 // subroutine to write the image to disk
@@ -264,7 +267,7 @@ private:
   CSIImageType::Pointer GetCSIImage(CSIFilterType::Pointer, const int , 
                                                             const int );
   // write a paraview file from the DA data structures
-  void WriteDAImage(std::ostringstream &);
+  PetscErrorCode WriteDAImage(std::ostringstream &);
   int necho, ntime, median, noffset, nslice;    // defaults
   PetscScalar alpha,maxdiff;
   // dimensions for all images
@@ -281,7 +284,7 @@ private:
   InputImageType::RegionType::SizeType size;
   // structured grid infrastructure
   DA                dac;
-  Vec localVec,imageVec;
+  Vec globalVec,imageVec;
   VecScatter     gather;
 
   // processor bounding box
@@ -445,23 +448,24 @@ PetscErrorCode RealTimeThermalImaging::GetHeaderData()
   // only need to read in the first set to get the header info
   reader->SetFileNames(filenames[0] );
   InputImageType::Pointer tmpImage; // image pointer for header info
-  tmpImage= GetImageData(reader, filenames[0]);
+  tmpImage= GetImageData(reader, rank, filenames[0]);
   // scale image to meters
   sp = 0.001 * tmpImage->GetSpacing();
-  std::cout << "Spacing = ";
-  std::cout << sp[0] << ", " << sp[1] << ", " << sp[2] << std::endl;
+  if(!rank) std::cout << "Spacing = "
+                      << sp[0] << ", " << sp[1] << ", " << sp[2] << std::endl;
   
   // scale image to meters
   const InputImageType::PointType& orgn_mm = tmpImage->GetOrigin();
   orgn[0] = 0.001 * orgn_mm[0];
   orgn[1] = 0.001 * orgn_mm[1];
   orgn[2] = 0.001 * orgn_mm[2];
-  std::cout << "Origin = ";
-  std::cout << orgn[0] << ", " << orgn[1] << ", " << orgn[2] << std::endl;
+  if(!rank) std::cout << "Origin = " << orgn[0] << ", " 
+                                     << orgn[1] << ", " << orgn[2] << std::endl;
 
   // get size information
   size=tmpImage->GetRequestedRegion().GetSize();
 
+  if(!rank) std::cout << "   ****Dimension Data****   " <<std::endl<<std::endl;
   PetscFunctionReturn(0);
 }
 //setup Petsc DA data structures
@@ -480,7 +484,7 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
   DAPeriodicType ptype = DA_NONPERIODIC;
   DAStencilType  stype = DA_STENCIL_BOX;
   ierr = DACreate3d(PETSC_COMM_WORLD,ptype,stype, size[0], size[1], size[2],
-                    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,necho,1,
+                    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,nvarplot,1,
                     PETSC_NULL,PETSC_NULL,PETSC_NULL,&dac);CHKERRQ(ierr);
   ierr = DAGetCorners(dac,&ProcStart[0],&ProcStart[1],&ProcStart[2], 
                           &ProcWidth[0],&ProcWidth[1],&ProcWidth[2]); 
@@ -502,8 +506,8 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
                                      orgn[2],orgn[2]+sp[2]*size[2] );CHKERRQ(ierr);
 
   // create DA vectors
-  DACreateLocalVector(dac,&localVec);
-  VecScatterCreateToZero(localVec,&gather,&imageVec);
+  DACreateGlobalVector(dac,&globalVec);
+  VecScatterCreateToZero(globalVec,&gather,&imageVec);
 
   //  Software Guide : BeginLatex
   //  
@@ -533,14 +537,14 @@ PetscErrorCode RealTimeThermalImaging::FinalizeDA()
   // destroy scatter context, vector, when no longer needed
   ierr = VecScatterDestroy(gather);CHKERRQ(ierr);
   ierr = VecDestroy(imageVec);CHKERRQ(ierr);
-  //ierr = VecDestroy(localVec);CHKERRQ(ierr); DA will destroy this
+  //ierr = VecDestroy(globalVec);CHKERRQ(ierr); DA will destroy this
   ierr = DADestroy(dac);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 // subroutine to write the image to disk
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::WriteDAImage"
-void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
+PetscErrorCode RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
 {
   PetscFunctionBegin;
 
@@ -562,7 +566,8 @@ void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
   // get pointer to petsc data structures
   PetscScalar   ****MapPixel;
   VecOutputImageType::PixelType   pixelValue;
-  DAVecGetArrayDOF(dac,imageVec,&MapPixel);
+  ierr = VecGetArray4d(imageVec,size[2],size[1],size[0],nvarplot,
+                                        0,0,0,0,&MapPixel); CHKERRQ(ierr);
 
   /*
      loop through parallel data structures
@@ -583,7 +588,8 @@ void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
     }
     outputIt.NextSlice(); // get next slice
   }
-  DAVecRestoreArrayDOF(dac,imageVec,&MapPixel);
+  ierr = VecRestoreArray4d(imageVec,size[2],size[1],size[0],nvarplot,
+                                           0,0,0,0,&MapPixel); CHKERRQ(ierr);
 
   // setup writer
   VecWriterType::Pointer writer = VecWriterType::New();
@@ -598,7 +604,7 @@ void RealTimeThermalImaging::WriteDAImage(std::ostringstream &filename)
     {
     std::cout << ex; abort();
     }
-  PetscFunctionReturnVoid();
+  PetscFunctionReturn(0);
 }
 // generate proton resonance frequency thermal images
 #undef __FUNCT__
@@ -807,7 +813,7 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
      // only need to read in the first set to get the header info
      reader->SetFileNames(filenames[0] );
      InputImageType::Pointer tmpImage; // image pointer for header info
-     tmpImage= GetImageData(reader, filenames[0]);
+     tmpImage= GetImageData(reader, rank, filenames[0]);
 
      // scratch storage for header value
      std::string value; 
@@ -845,17 +851,19 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
      std::string studyIdkey  = "0020|0010" ;
      std::string seriesIdkey = "0020|0011" ;
      gdcmIO->GetValueFromTag(studyIdkey  , value) ;
-     std::cout << "Study Id " << value  ;
+     if(!rank) std::cout << "Study Id " << value  ;
      gdcmIO->GetValueFromTag(seriesIdkey , value) ;
-     std::cout << " Series Number " << value   << "\n" ;
-     std::cout << "echo time " << echotime[jjj] << " (ms) " << std::endl ;
+     if(!rank) std::cout << " Series Number " << value 
+                         << " echo time " << echotime[jjj]<< " (ms)"<<std::endl;
     }
 
   //Define gamma*B0 and the echo spacing
   PetscScalar      gB0=imagfreq[0], esp=echotime[1]-echotime[0];
-  std::cout << std::endl  << "echo spacing " << esp   << " (ms) "
-                          << "imaging freq " << gB0   << " (MHz) "
-                          << "ntime        " << ntime << std::endl;
+  if(!rank) std::cout << "echo spacing " << esp   << " (ms) "
+                      << "imaging freq " << gB0   << " (MHz) "
+                      << "ntime  "       << ntime << std::endl;
+
+  if(!rank) std::cout << "   ****Header Info****   " << std::endl << std::endl ;
   // containers for real and imaginary data
   CSIFilterType::Pointer   realImageFilter=CSIFilterType::New(),// real images
                            imagImageFilter=CSIFilterType::New();// imag images
@@ -896,8 +904,8 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
 
     // get pointer to petsc data structures
     PetscScalar   ****MapPixel;
-    DAGetLocalVector(dac,&localVec);
-    DAVecGetArrayDOF(dac,localVec,&MapPixel);
+    DAGetGlobalVector(dac,&globalVec);
+    DAVecGetArrayDOF(dac,globalVec,&MapPixel);
     //ierr = PetscObjectSetName((PetscObject)MapPixel,"MapPixel");CHKERRQ(ierr);
 
     PetscInt PixelCounter = 0 ; 
@@ -911,6 +919,8 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
         for (PetscInt i=ProcStart[0]; i<ProcStart[0]+ProcWidth[0]; i++) 
         {
           //std::cout << "pixel # " << PixelCounter++ << std::endl;
+          //for(PetscInt ivar = 0; ivar < nvarplot ; ivar++) 
+          //          MapPixel[k][j][i][ivar] = realIt.Get()[ivar] ;
           ierr= PetscMatlabEnginePutArray(PETSC_MATLAB_ENGINE_WORLD,
                                           necho,1,&realIt.Get()[0],
                                                      "RealPixel");CHKERRQ(ierr);
@@ -927,6 +937,7 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
                                           nvarplot,1,MapPixel[k][j][i],
                                                      "MapPixel");CHKERRQ(ierr);
           ++realIt; ++imagIt; // update iterators
+          CHKMEMQ; // check for memory corruption use -malloc_debug to enable
         }
         // get next line
         realIt.NextLine(); imagIt.NextLine();
@@ -938,21 +949,21 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
     /*
        Restore vector
     */
-    DAVecRestoreArrayDOF(dac,localVec,&MapPixel);
-    DARestoreLocalVector(dac,&localVec);
+    DAVecRestoreArrayDOF(dac,globalVec,&MapPixel);
+    DARestoreGlobalVector(dac,&globalVec);
    
     // gather the image buffer on processor zero
-    VecScatterBegin(gather,localVec,imageVec,INSERT_VALUES,SCATTER_FORWARD);
-    VecScatterEnd(gather,localVec,imageVec,INSERT_VALUES,SCATTER_FORWARD);
+    VecScatterBegin(gather,globalVec,imageVec,INSERT_VALUES,SCATTER_FORWARD);
+    VecScatterEnd(gather,globalVec,imageVec,INSERT_VALUES,SCATTER_FORWARD);
   
-    // output unfiltered tmap
+    // output various maps
     if(!rank) // write image from root process
      {
        std::ostringstream unfiltered_filename;
-       unfiltered_filename << OutputDir <<"/unfiltered";
+       unfiltered_filename << OutputDir <<"/unfiltered."<< rank << ".";
        OSSRealzeroright(unfiltered_filename,4,0,iii);
-       unfiltered_filename << "."<< rank <<".vtk" ;
-       WriteDAImage(unfiltered_filename);
+       unfiltered_filename << ".vtk" ;
+       ierr= WriteDAImage(unfiltered_filename); CHKERRQ(ierr);
      }
 
    } // end loop over time instances
@@ -976,8 +987,8 @@ RealTimeThermalImaging::RealTimeGenerateFileNames(const int istep,
          std::ostringstream file_name;
          // hard code for now
          file_name << ExamPath << "/s" << DirId << "/i" 
-                   <<   DirId     + 2*nslice*(necho*(istep+noffset)+iecho) + (2*jjj+1) + iii 
-                   << ".MRDC."<<    2*nslice*(necho*(istep+noffset)+iecho) + (2*jjj+1) + iii ;
+                   <<   DirId     + 2*nslice*(necho*istep+iecho+noffset) + (2*jjj+1) + iii 
+                   << ".MRDC."<<    2*nslice*(necho*istep+iecho+noffset) + (2*jjj+1) + iii ;
          filenames[iii][jjj] = file_name.str();
       }
   PetscFunctionReturn(0);
@@ -1010,12 +1021,12 @@ InputImageType::Pointer RealTimeThermalImaging::GetPhaseImage(
   reader->SetFileNames(realFilenames );
   realfilter->SetInput( reader->GetOutput() );
   realfilter->SetExtractionRegion( procRegion );
-  phaseFilter->SetInput1( GetImageData(realfilter, realFilenames) );
+  phaseFilter->SetInput1( GetImageData(realfilter, rank, realFilenames) );
   // get imaginary images
   reader->SetFileNames(imagFilenames );
   imagfilter->SetInput( reader->GetOutput() );
   imagfilter->SetExtractionRegion( procRegion );
-  phaseFilter->SetInput2( GetImageData(imagfilter, imagFilenames) );
+  phaseFilter->SetInput2( GetImageData(imagfilter, rank, imagFilenames) );
   // get imaginary images
   // compute phase
 
@@ -1057,9 +1068,11 @@ CSIImageType::Pointer RealTimeThermalImaging::GetCSIImage(
      reader->SetFileNames( filenames[idData] );
      procfilter[jjj]->SetInput( reader->GetOutput() );
      procfilter[jjj]->SetExtractionRegion( procRegion );
-     CSIFilter->PushBackInput( GetImageData( procfilter[jjj], filenames[idData] ) );
+     CSIFilter->PushBackInput( GetImageData( procfilter[jjj], rank, filenames[idData] ) );
 
     }
+  // push back zeros for necho < maxCSIecho
+  for (int jjj=necho;jjj<maxCSIecho;jjj++) CSIFilter->PushBackInput(net_Image);
 
   //  Software Guide : BeginLatex
   //  Then the region is passed to the filter using the
@@ -1168,7 +1181,7 @@ int main( int argc, char* argv[] )
     case 1: // 1 echo --> multiplane tmap
       ierr = MRTI.GeneratePRFTmap();CHKERRQ(ierr);
       break;
-    default: // necho < 16 --> CSI
+    default: // 2 <= necho <= 16 --> CSI
       ierr = MRTI.GenerateCSITmap();CHKERRQ(ierr);
       break;
    }
