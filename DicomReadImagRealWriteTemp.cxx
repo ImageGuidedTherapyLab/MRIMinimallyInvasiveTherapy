@@ -111,7 +111,8 @@ typedef PetscScalar                                            InputPixelType;
 typedef float                                                 OutputPixelType;
 typedef itk::Image< InputPixelType, Dimension >               InputImageType;
 typedef itk::Image< itk::Vector< PetscScalar , maxCSIecho >,
-                                                 Dimension >    CSIImageType;
+                                                 Dimension >    VecImageType;
+typedef itk::Image< itk::Vector< PetscScalar ,3 >,Dimension >   RawImageType;
 typedef itk::Image< OutputPixelType, Dimension >              OutputImageType;
 typedef itk::Image< itk::Vector< OutputPixelType , nvarplot > , Dimension > 
                                                            VecOutputImageType;
@@ -119,13 +120,16 @@ typedef itk::ExtractImageFilter< InputImageType, InputImageType>
                                                                ProcFilterType;
 typedef itk::Atan2ImageFilter<InputImageType,InputImageType,InputImageType>
                                                               PhaseFilterType;
-typedef itk::ScalarToArrayCastImageFilter< InputImageType, CSIImageType >
-                                                                CSIFilterType;
+typedef itk::ScalarToArrayCastImageFilter< InputImageType, VecImageType >
+                                                                VecFilterType;
+typedef itk::ScalarToArrayCastImageFilter< InputImageType, RawImageType >
+                                                                RawFilterType;
 typedef itk::ImageSeriesReader<      InputImageType >              ReaderType;
 typedef itk::ImageFileWriter<       OutputImageType >              WriterType;
 typedef itk::ImageFileWriter<    VecOutputImageType >           VecWriterType;
+typedef itk::ImageFileWriter<          RawImageType >           RawWriterType;
 typedef itk::GDCMImageIO                                          ImageIOType;
-typedef itk::ImageSliceConstIteratorWithIndex< CSIImageType > CSIIteratorType;
+typedef itk::ImageSliceConstIteratorWithIndex< VecImageType > VecIteratorType;
 typedef itk::ImageSliceIteratorWithIndex< VecOutputImageType > VecOutIterType;
 typedef itk::ImageSliceConstIteratorWithIndex< InputImageType >  
                                                             InputIteratorType;
@@ -252,7 +256,7 @@ public:
   PetscErrorCode GenerateCSITmap(); // generate CSI TMAP
   PetscErrorCode GeneratePRFTmap(); // generate PRF TMAP
   // generate phase images from real imaginary
-  InputImageType::Pointer GetPhaseImage(PhaseFilterType::Pointer ,
+  InputImageType::Pointer GetPhaseImage(PhaseFilterType::Pointer , const int,
                                         std::vector<std::string>  &,
                                         std::vector<std::string>  &); 
   // write an ini file containing dicom header info
@@ -263,9 +267,15 @@ private:
   // generate the expected file of a given image acquisition set
   PetscErrorCode RealTimeGenerateFileNames( const int , const int , 
                                          std::vector < std::vector < std::string > > &);
-  // CSI Vector values images
-  CSIImageType::Pointer GetCSIImage(CSIFilterType::Pointer, const int , 
+  // Vector valued images over echos
+  VecImageType::Pointer GetVecEchoImage(VecFilterType::Pointer, const int , 
                                                             const int );
+  // Vector valued images over time
+  VecImageType::Pointer GetVecTimeImage(VecFilterType::Pointer, const int , 
+                                                            const int );
+  // tmap mask
+  void GetImageMask( );
+
   // write a paraview file from the DA data structures
   PetscErrorCode WriteDAImage(std::ostringstream &);
   int necho, ntime, median, noffset, nslice;    // defaults
@@ -293,6 +303,8 @@ private:
 
   // to hold final image
   InputImageType::Pointer   net_Image;
+  // to hold image mask
+  InputImageType::Pointer   maskImage;
   // command line arguments
   const char *ExamPath, *OutputDir; 
   int DirId;   
@@ -525,6 +537,12 @@ PetscErrorCode RealTimeThermalImaging::SetupDA()
   net_Image->Allocate();
   net_Image->SetSpacing( sp );
   net_Image->SetOrigin( orgn);
+
+  maskImage = InputImageType::New();
+  maskImage->SetRegions( procRegion );
+  maskImage->Allocate();
+  maskImage->SetSpacing( sp );
+  maskImage->SetOrigin( orgn);
   // Software Guide : EndCodeSnippet
   PetscFunctionReturn(0);
 }
@@ -615,46 +633,20 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
 
   std::vector< std::vector<std::string> > filenames( 2 , 
                              std::vector< std::string >::vector(nslice,"") );
-  RealTimeGenerateFileNames(0,0,filenames);
 
   // containers for phase data
   PhaseFilterType::Pointer  basephaseFilter=PhaseFilterType::New(),// n-1 phase data
                          currentphaseFilter=PhaseFilterType::New();// current phase data
 
-  // containers for image pointers
-  // get base image first and prepare temperature image
+  // image pointers
   InputImageType::Pointer baseImage, currentImage;
 
-  {
-    // get images
-    baseImage = GetPhaseImage(basephaseFilter,filenames[0],filenames[1] );
-    // output base phase image as a place holder
-    std::ostringstream basephase_filename;
-    // output file
-    basephase_filename << OutputDir <<"/tmap."<< rank << ".";
-    OSSRealzeroright(basephase_filename,4,0,0);
-    basephase_filename << ".vtk" ;
+  // create image mask 
+  GetImageMask();
 
-    WriteImage(baseImage,basephase_filename,zeroFilterRadius);
-
-  }
-
-  bool EnhanceSNR=true;
-  if(EnhanceSNR)
-   {
-     for( int iii = 1 ; iii <= nslice ; iii++)
-      {
-       ierr= PetscMatlabEnginePutArray(PETSC_MATLAB_ENGINE_WORLD,
-                                 size[0],size[1],baseImage->GetBufferPointer(),
-                                                  "PixelBuffer");CHKERRQ(ierr);
-       ierr= PetscMatlabEngineEvaluate(PETSC_MATLAB_ENGINE_WORLD,
-                             "BufferOut=EnhanceSNR(PixelBuffer)");
-       CHKERRQ(ierr);
-       ierr= PetscMatlabEngineGetArray(PETSC_MATLAB_ENGINE_WORLD,
-                                 size[0],size[1],baseImage->GetBufferPointer(),
-                                                  "BufferOut");CHKERRQ(ierr);
-      }
-   }
+  // get initial phase image
+  RealTimeGenerateFileNames(0,0,filenames);
+  baseImage = GetPhaseImage(basephaseFilter,0,filenames[0],filenames[1] );
 
   // loop over time instances
   for( int iii = 1 ; iii <= ntime ; iii++)
@@ -664,7 +656,7 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
 
     // get images and header info
     double tmap_factor;
-    currentImage = GetPhaseImage(currentphaseFilter,filenames[0], filenames[1] );
+    currentImage = GetPhaseImage(currentphaseFilter,iii,filenames[0], filenames[1] );
     // Software Guide : BeginLatex
     // 
     // We can trigger the reading process by calling the \code{Update()}
@@ -735,16 +727,19 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
     // \emph{second} direction of the slice iterator defines the direction that
     // linear iteration walks within a slice
     InputIteratorType    currIt(currentImage   ,currentImage->GetRequestedRegion());
+    InputIteratorType    maskIt(   maskImage   ,   maskImage->GetRequestedRegion());
     BufferIteratorType   baseIt(   baseImage   ,   baseImage->GetRequestedRegion());
     BufferIteratorType   net_It(   net_Image   ,   net_Image->GetRequestedRegion());
    
     currIt.SetFirstDirection(  0 );   currIt.SetSecondDirection( 1 );
+    maskIt.SetFirstDirection(  0 );   maskIt.SetSecondDirection( 1 );
     baseIt.SetFirstDirection(  0 );   baseIt.SetSecondDirection( 1 );
     net_It.SetFirstDirection(  0 );   net_It.SetSecondDirection( 1 );
    
     // Software Guide : EndCodeSnippet 
     // set iterators to the beginning
     currIt.GoToBegin();
+    maskIt.GoToBegin();
     baseIt.GoToBegin();
     net_It.GoToBegin();
     // compute net phase difference
@@ -754,21 +749,24 @@ PetscErrorCode RealTimeThermalImaging::GeneratePRFTmap()
         {
         while ( !net_It.IsAtEndOfLine() )
           {
-          net_It.Set(
-             net_It.Get() +  ( currIt.Get() - baseIt.Get() ) * tmap_factor
+          net_It.Set( net_It.Get() + tmap_factor * maskIt.Get() *
+                                       ( currIt.Get() - baseIt.Get() ) 
                     );
           // update the base to contain the n-1 image for next time
           baseIt.Set( currIt.Get() );
           ++currIt;
+          ++maskIt;
           ++baseIt;
           ++net_It;
           }
           currIt.NextLine();
+          maskIt.NextLine();
           baseIt.NextLine();
           net_It.NextLine();
         }
       // get next slice
       currIt.NextSlice(); 
+      maskIt.NextSlice(); 
       net_It.NextSlice();
       baseIt.NextSlice();
       }
@@ -865,19 +863,19 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
 
   if(!rank) std::cout << "   ****Header Info****   " << std::endl << std::endl ;
   // containers for real and imaginary data
-  CSIFilterType::Pointer   realImageFilter=CSIFilterType::New(),// real images
-                           imagImageFilter=CSIFilterType::New();// imag images
+  VecFilterType::Pointer   realImageFilter=VecFilterType::New(),// real images
+                           imagImageFilter=VecFilterType::New();// imag images
 
   // pointers to real and imaginary vector images for CSI computation
-  CSIImageType::Pointer realImages, imagImages;
+  VecImageType::Pointer realImages, imagImages;
 
   // loop over time instances
   for( int iii = 0 ; iii <= ntime ; iii++)
    {
 
     // get image data
-    realImages = GetCSIImage(realImageFilter,iii,0); //real images
-    imagImages = GetCSIImage(imagImageFilter,iii,1); //imag images
+    realImages = GetVecEchoImage(realImageFilter,iii,0); //real images
+    imagImages = GetVecEchoImage(imagImageFilter,iii,1); //imag images
 
     // Software Guide : BeginLatex
     //
@@ -895,8 +893,8 @@ PetscErrorCode RealTimeThermalImaging::GenerateCSITmap()
     // Software Guide : BeginCodeSnippet
 
     // initialize ITK iterators
-    CSIIteratorType realIt( realImages, realImages->GetRequestedRegion() );
-    CSIIteratorType imagIt( imagImages, imagImages->GetRequestedRegion() );
+    VecIteratorType realIt( realImages, realImages->GetRequestedRegion() );
+    VecIteratorType imagIt( imagImages, imagImages->GetRequestedRegion() );
     realIt.SetFirstDirection(  0 );   realIt.SetSecondDirection( 1 );
     imagIt.SetFirstDirection(  0 );   imagIt.SetSecondDirection( 1 );
 
@@ -993,11 +991,129 @@ RealTimeThermalImaging::RealTimeGenerateFileNames(const int istep,
       }
   PetscFunctionReturn(0);
 }
+// return an image mask from the real/imaginary images 
+#undef __FUNCT__
+#define __FUNCT__ "RealTimeThermalImaging::GetImageMask"
+void RealTimeThermalImaging::GetImageMask()
+{
+  PetscFunctionBegin;
+
+  // containers for real and imaginary data
+  VecFilterType::Pointer   realImageFilter=VecFilterType::New(),// real images
+                           imagImageFilter=VecFilterType::New();// imag images
+
+  // pointers to real and imaginary vector images for CSI computation
+  VecImageType::Pointer realImages, imagImages;
+
+  // get image data
+  realImages = GetVecTimeImage(realImageFilter,2,0); //real images
+  imagImages = GetVecTimeImage(imagImageFilter,2,1); //imag images
+
+  // Software Guide : BeginLatex
+  //
+  // \index{Iterators!construction of} \index{Iterators!and image regions} The
+  // necessary images and region definitions are now in place.  All that is
+  // left to do is to create the iterators and perform the copy.  Note that
+  // image iterators are not accessed via smart pointers so they are
+  // light-weight objects that are instantiated on the stack.  Also notice how
+  // the input and output iterators are defined over the \emph{same
+  // corresponding region}.  Though the images are different sizes, they both
+  // contain the same target subregion.
+  //
+  // Software Guide : EndLatex
+  
+  // Software Guide : BeginCodeSnippet
+
+  // initialize ITK iterators
+  VecIteratorType    realIt( realImages, realImages->GetRequestedRegion() );
+  VecIteratorType    imagIt( imagImages, imagImages->GetRequestedRegion() );
+  BufferIteratorType maskIt( maskImage ,  maskImage->GetRequestedRegion() );
+  realIt.SetFirstDirection(  0 );   realIt.SetSecondDirection( 1 );
+  imagIt.SetFirstDirection(  0 );   imagIt.SetSecondDirection( 1 );
+  maskIt.SetFirstDirection(  0 );   maskIt.SetSecondDirection( 1 );
+
+  // data structure for max
+  std::vector< double > maxvalue(nslice,0.0);
+
+  double avgnorm; // scratch
+
+  // set iterators to the beginning
+  maskIt.GoToBegin();
+  realIt.GoToBegin();
+  imagIt.GoToBegin();
+  for(int kkk=0; kkk < nslice ; kkk++)
+    {
+    while ( !maskIt.IsAtEndOfSlice() )
+      {
+      while ( !maskIt.IsAtEndOfLine() )
+        {
+        avgnorm= std::sqrt(
+                 pow((0.5*(realIt.Get()[0] + realIt.Get()[1])),2) 
+                                 +
+                 pow((0.5*(imagIt.Get()[0] + imagIt.Get()[1])),2)
+                                 ) ;
+        if(maxvalue[kkk] < avgnorm) maxvalue[kkk] = avgnorm; 
+        ++maskIt;
+        ++realIt;
+        ++imagIt;
+        }
+        maskIt.NextLine();
+        realIt.NextLine();
+        imagIt.NextLine();
+      }
+    // get next slice
+    maskIt.NextSlice();
+    realIt.NextSlice();
+    imagIt.NextSlice();
+    }
+
+  // set iterators to the beginning
+  maskIt.GoToBegin();
+  realIt.GoToBegin();
+  imagIt.GoToBegin();
+  for(int kkk=0; kkk < nslice ; kkk++)
+    {
+    double snrthreshold = 0.05 * maxvalue[kkk];
+    while ( !maskIt.IsAtEndOfSlice() )
+      {
+      while ( !maskIt.IsAtEndOfLine() )
+        {
+        avgnorm= std::sqrt(
+                 pow((0.5*(realIt.Get()[0] + realIt.Get()[1])),2) 
+                                 +
+                 pow((0.5*(imagIt.Get()[0] + imagIt.Get()[1])),2)
+                                 ) ;
+        if(avgnorm > snrthreshold) 
+          maskIt.Set(1.0);
+        else
+          maskIt.Set(0.0);
+        ++maskIt;
+        ++realIt;
+        ++imagIt;
+        }
+        maskIt.NextLine();
+        realIt.NextLine();
+        imagIt.NextLine();
+      }
+    // get next slice
+    maskIt.NextSlice();
+    realIt.NextSlice();
+    imagIt.NextSlice();
+    }
+ 
+  // output image mask
+  std::ostringstream maskfilename;
+  maskfilename << OutputDir <<"/mask."<< rank << ".vtk";
+  WriteImage(maskImage , maskfilename , zeroFilterRadius);
+
+  PetscFunctionReturnVoid();
+}
 // return a phase image from the real/imaginary images
 #undef __FUNCT__
 #define __FUNCT__ "RealTimeThermalImaging::GetPhaseImage"
 InputImageType::Pointer RealTimeThermalImaging::GetPhaseImage(
                                       PhaseFilterType::Pointer phaseFilter,
+                                      const int istep,
                                       std::vector<std::string>  &realFilenames,
                                       std::vector<std::string>  &imagFilenames )
 {
@@ -1007,6 +1123,7 @@ InputImageType::Pointer RealTimeThermalImaging::GetPhaseImage(
   //  method and assigned to a SmartPointer.
   ProcFilterType::Pointer realfilter=ProcFilterType::New();
   ProcFilterType::Pointer imagfilter=ProcFilterType::New();
+  RawFilterType::Pointer  rawfilter=RawFilterType::New();
 
   //  Software Guide : BeginLatex
   //  Then the region is passed to the filter using the
@@ -1021,15 +1138,20 @@ InputImageType::Pointer RealTimeThermalImaging::GetPhaseImage(
   reader->SetFileNames(realFilenames );
   realfilter->SetInput( reader->GetOutput() );
   realfilter->SetExtractionRegion( procRegion );
-  phaseFilter->SetInput1( GetImageData(realfilter, rank, realFilenames) );
+  InputImageType::Pointer realImage = 
+                             GetImageData(realfilter, rank, realFilenames);
+  phaseFilter->SetInput1( realImage );
+  rawfilter->PushBackInput( realImage );
   // get imaginary images
   reader->SetFileNames(imagFilenames );
   imagfilter->SetInput( reader->GetOutput() );
   imagfilter->SetExtractionRegion( procRegion );
-  phaseFilter->SetInput2( GetImageData(imagfilter, rank, imagFilenames) );
-  // get imaginary images
-  // compute phase
+  InputImageType::Pointer imagImage = 
+                             GetImageData( imagfilter, rank, imagFilenames) ;
+  phaseFilter->SetInput2(   imagImage );
+  rawfilter->PushBackInput( imagImage );
 
+  // compute phase
   try
     {
     phaseFilter->Update();
@@ -1038,15 +1160,95 @@ InputImageType::Pointer RealTimeThermalImaging::GetPhaseImage(
     {
     std::cout << "Exception thrown" << excp << std::endl; abort();
     }
+ 
+  // write raw data
+  rawfilter->PushBackInput( phaseFilter->GetOutput() );
+  // setup writer
+  RawWriterType::Pointer writer = RawWriterType::New();
+
+  // output base phase image as a place holder
+  std::ostringstream rawfilename;
+  // output file
+  rawfilename << OutputDir <<"/rawdata."<< rank << ".";
+  OSSRealzeroright(rawfilename,4,0,istep);
+  rawfilename << ".vtk" ;
+
+  writer->SetFileName( rawfilename.str() );
+  std::cout << "writing " << rawfilename.str() << std::endl;
+  writer->SetInput( rawfilter->GetOutput() );
+  // Software Guide : EndCodeSnippet
+  try
+    {
+    writer->Update();
+    }
+  catch (itk::ExceptionObject &ex)
+    {
+    std::cout << ex; abort();
+    }
 
   // Software Guide : EndCodeSnippet
   PetscFunctionReturn(phaseFilter->GetOutput());
 }
-// return a phase image from the real/imaginary images
+// return a vector image over image times
 #undef __FUNCT__
-#define __FUNCT__ "RealTimeThermalImaging::GetCSIImage"
-CSIImageType::Pointer RealTimeThermalImaging::GetCSIImage(
-                               CSIFilterType::Pointer CSIFilter,
+#define __FUNCT__ "RealTimeThermalImaging::GetVecTimeImage"
+VecImageType::Pointer RealTimeThermalImaging::GetVecTimeImage(
+                               VecFilterType::Pointer VecFilter,
+                               const int locntime, const int idData)
+{
+  PetscFunctionBegin;
+  //  The ExtractImageFilter type is instantiated using the input and
+  //  output image types. A filter object is created with the New()
+  //  method and assigned to a SmartPointer.
+  std::vector< ProcFilterType::Pointer > 
+                                 procfilter( locntime , ProcFilterType::New() );
+
+  std::vector< std::vector<std::string> > filenames( 2 * necho , 
+                             std::vector< std::string >::vector(nslice,"") );
+
+  for (int iii = 0 ; iii < locntime ; iii ++ )
+    {
+     // generate list of file names
+     RealTimeGenerateFileNames(iii,0,filenames);
+
+     // get images at each time point
+     reader->SetFileNames( filenames[idData] );
+     procfilter[iii]->SetInput( reader->GetOutput() );
+     procfilter[iii]->SetExtractionRegion( procRegion );
+     VecFilter->PushBackInput( GetImageData( procfilter[iii], rank, filenames[idData] ) );
+    }
+  // push back zeros for necho < maxCSIecho
+  for (int iii=locntime;iii<maxCSIecho;iii++) VecFilter->PushBackInput(net_Image);
+
+  //  Software Guide : BeginLatex
+  //  Then the region is passed to the filter using the
+  //  SetExtractionRegion() method.
+  //
+  //  \index{itk::ExtractImageFilter!SetExtractionRegion()}
+  //  Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  
+  // get imaginary images
+  // compute phase
+
+  try
+    {
+    VecFilter->Update();
+    }
+  catch (itk::ExceptionObject &excp)
+    {
+    std::cout << "Exception thrown" << excp << std::endl; abort();
+    }
+
+  // Software Guide : EndCodeSnippet
+  PetscFunctionReturn(VecFilter->GetOutput());
+}
+// return a vector image over echo times
+#undef __FUNCT__
+#define __FUNCT__ "RealTimeThermalImaging::GetVecEchoImage"
+VecImageType::Pointer RealTimeThermalImaging::GetVecEchoImage(
+                               VecFilterType::Pointer VecFilter,
                                const int istep, const int idData)
 {
   PetscFunctionBegin;
@@ -1068,11 +1270,11 @@ CSIImageType::Pointer RealTimeThermalImaging::GetCSIImage(
      reader->SetFileNames( filenames[idData] );
      procfilter[jjj]->SetInput( reader->GetOutput() );
      procfilter[jjj]->SetExtractionRegion( procRegion );
-     CSIFilter->PushBackInput( GetImageData( procfilter[jjj], rank, filenames[idData] ) );
+     VecFilter->PushBackInput( GetImageData( procfilter[jjj], rank, filenames[idData] ) );
 
     }
   // push back zeros for necho < maxCSIecho
-  for (int jjj=necho;jjj<maxCSIecho;jjj++) CSIFilter->PushBackInput(net_Image);
+  for (int jjj=necho;jjj<maxCSIecho;jjj++) VecFilter->PushBackInput(net_Image);
 
   //  Software Guide : BeginLatex
   //  Then the region is passed to the filter using the
@@ -1088,7 +1290,7 @@ CSIImageType::Pointer RealTimeThermalImaging::GetCSIImage(
 
   try
     {
-    CSIFilter->Update();
+    VecFilter->Update();
     }
   catch (itk::ExceptionObject &excp)
     {
@@ -1096,7 +1298,7 @@ CSIImageType::Pointer RealTimeThermalImaging::GetCSIImage(
     }
 
   // Software Guide : EndCodeSnippet
-  PetscFunctionReturn(CSIFilter->GetOutput());
+  PetscFunctionReturn(VecFilter->GetOutput());
 }
 // write an Ini File containg dicom header info 
 #undef __FUNCT__
