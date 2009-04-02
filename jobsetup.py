@@ -618,6 +618,81 @@ def setupjob(config):
 
    return joblist
 
+def setupkalman(iniFile):
+   Delimiter=";"
+
+   # get the thermal image info
+   MRTI_nslice = iniFile.getint("mrti","nslice")
+   MRTI_nzero  = iniFile.getint("mrti","nzero")
+   MRTI_ntime  = iniFile.getint("mrti","ntime")
+
+   # get model parameters
+   x_0 = iniFile.getfloat("source_laser","x_0")
+   y_0 = iniFile.getfloat("source_laser","y_0")
+   z_0 = iniFile.getfloat("source_laser","z_0")
+   listk_0  = map(float,iniFile.get("thermalcond","k_0").split(Delimiter))
+   listw_0  = map(float,iniFile.get("perfusion","w_0").split(Delimiter))
+   meascovList   = map(float,iniFile.get("kalman","meascov").split(Delimiter))
+   statecovList  = map(float,iniFile.get("kalman","statecov").split(Delimiter))
+   
+   # variations in ROI 
+   # assumed of the form [ix,nx,iy,ny];[ix,nx,iy,ny];...
+   roiList = map(utilities.ExtractIntData,
+                   iniFile.get("kalman","roi").split(Delimiter))
+
+   # variations in solution methods
+   linalgList = map(int,iniFile.get("kalman","method").split(Delimiter))
+   solverList = iniFile.get("compexec","solver").split(Delimiter)
+   
+   # create list of command line params
+   cmdLineParams =[ (meascov,statecov,roi,linalg,solver) 
+                    for meascov   in   meascovList
+                    for statecov  in   statecovList
+                    for roi       in   roiList
+                    for linalg    in   linalgList
+                    for solver    in   solverList
+                  ]
+   cmdLine_list=[]
+   for (meascov,statecov,roi,linalg,solver)  in cmdLineParams:
+      cmdLineOpt  = "-nslice %d -nzero %d -ntime %d" % \
+                         (MRTI_nslice,MRTI_nzero,MRTI_ntime)
+      cmdLineOpt  = cmdLineOpt  + \
+                    " -X_0 %f -Y_0 %f -Z_0 %f -meascov %f -statecov %f" % \
+                          (x_0,y_0,z_0,meascov,statecov)
+      cmdLineOpt  = cmdLineOpt  + \
+                    " -ix %d -nx %d -iy %d -ny %d" % \
+                           (roi[0],roi[1],roi[2],roi[3])
+      cmdLineOpt  = cmdLineOpt  + \
+                    " -method %d -solver %s" % (linalg,solver)
+      cmdLine_list.append( cmdLineOpt  )
+
+   # variations in execution options
+   methodlist  = iniFile.get("compexec","method").split(Delimiter)
+   numproclist = map(int,iniFile.get("compexec","numproc").split(Delimiter))
+
+   joblist =[ (numproc,cmdLine_options,method) 
+                    for numproc          in numproclist 
+                    for cmdLine_options  in cmdLine_list 
+                    for method           in methodlist 
+            ]
+   # don't run too many
+   if( len(joblist)  > 40 ) : 
+      print "\n\n    %d jobs > 40 job \n\n" % len(paramlist) 
+      # sit idle until user inputs ready to continue
+      status = "i"
+      while(status != "c"):
+         try: 
+            print "(c)ontinue (q)uit"
+            status = sys.stdin.read()
+            if(status == "q"):
+              print "\n\n    quitting"
+              sys.exit(0) 
+         except KeyboardInterrupt: 
+            pass
+      print "\ncontinuing......"
+
+   return joblist 
+
 #debugging
 if __name__ == "__main__":
    print __doc__
