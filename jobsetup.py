@@ -677,7 +677,7 @@ def setupkalman(iniFile):
             ]
    # don't run too many
    if( len(joblist)  > 40 ) : 
-      print "\n\n    %d jobs > 40 job \n\n" % len(paramlist) 
+      print "\n\n    %d jobs > 40 job \n\n" % len(joblist) 
       # sit idle until user inputs ready to continue
       status = "i"
       while(status != "c"):
