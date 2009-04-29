@@ -9,6 +9,8 @@ import utilities
 import copy
 import ConfigParser 
 
+Delimiter=";"
+
 def setupjob(config):
    print """param_study:
      default setup, may vary the intial guess of parameters 
@@ -22,7 +24,7 @@ def setupjob(config):
    listk_1          = [config.getfloat("thermalcond","k_1")]
    listk_2          = [config.getfloat("thermalcond","k_2")]
    listk_3          = [config.getfloat("thermalcond","k_3")]
-   listw_0          = [config.getfloat("perfusivity","w_0")]
+   listw_0          = map(float,config.get("perfusivity","w_0").split(Delimiter))
    listw_n          = [config.getfloat("perfusivity","w_n")]
    listw_i          = [config.getfloat("perfusivity","w_i")]
    listw_d          = [config.getfloat("perfusivity","w_d")]
@@ -223,10 +225,10 @@ def setupjob(config):
      listk_3=utilities.variable_range(config,["thermalcond","k_3"],"atan")
      paramstudyid.append('k_3=%.1e')
      paramstudvar.append('k_3')
-   if(config.getboolean("compexec","vary_w_0")):
-     listw_0=utilities.variable_range(config,["perfusivity","w_0"],"atan")
-     paramstudyid.append('w_0=%.1e')
-     paramstudvar.append('w_0')
+   if(len(listw_0) > 1):
+     for w_0 in listw_0:
+       paramstudyid.append('w_0=%.1e')
+       paramstudvar.append('w_0')
    if(config.getboolean("compexec","vary_w_n")):
      listw_n=utilities.variable_range(config,["perfusivity","w_n"])
    if(config.getboolean("compexec","vary_w_i")):
@@ -619,12 +621,11 @@ def setupjob(config):
    return joblist
 
 def setupkalman(iniFile):
-   Delimiter=";"
 
    # get the thermal image info
    MRTI_nslice = iniFile.getint("mrti","nslice")
-   MRTI_nzero  = iniFile.getint("mrti","nzero")
-   MRTI_ntime  = iniFile.getint("mrti","ntime")
+   nzeroList  = map(int,iniFile.get("mrti","nzero").split(Delimiter))
+   ntimeList  = map(int,iniFile.get("mrti","ntime").split(Delimiter))
 
    # get model parameters
    x_0 = iniFile.getfloat("source_laser","x_0")
@@ -645,7 +646,9 @@ def setupkalman(iniFile):
    solverList = iniFile.get("compexec","solver").split(Delimiter)
    
    # create list of command line params
-   cmdLineParams =[ (meascov,statecov,roi,linalg,solver) 
+   cmdLineParams =[ (nzero,ntime,meascov,statecov,roi,linalg,solver) 
+                    for nzero     in   nzeroList
+                    for ntime     in   ntimeList
                     for meascov   in   meascovList
                     for statecov  in   statecovList
                     for roi       in   roiList
@@ -653,9 +656,9 @@ def setupkalman(iniFile):
                     for solver    in   solverList
                   ]
    cmdLine_list=[]
-   for (meascov,statecov,roi,linalg,solver)  in cmdLineParams:
+   for (nzero,ntime,meascov,statecov,roi,linalg,solver)  in cmdLineParams:
       cmdLineOpt  = "-nslice %d -nzero %d -ntime %d" % \
-                         (MRTI_nslice,MRTI_nzero,MRTI_ntime)
+                         (MRTI_nslice,nzero,ntime)
       cmdLineOpt  = cmdLineOpt  + \
                     " -X_0 %f -Y_0 %f -Z_0 %f -meascov %f -statecov %f" % \
                           (x_0,y_0,z_0,meascov,statecov)

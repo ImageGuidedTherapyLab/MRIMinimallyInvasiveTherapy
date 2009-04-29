@@ -204,10 +204,9 @@ for jobiter in JOBS:
       qsubfile.write("#$ -N %s                 \n" % namejob )
       qsubfile.write("#$ -cwd                  \n"           )
       qsubfile.write("#$ -S /bin/bash          \n"           )
-      qsubfile.write("echo 'Got $NSLOTS slots' \n"           )
-      qsubfile.write("echo $TMP                \n"           )
-      qsubfile.write("export LD_LIBRARY_PATH=%s\n" %  os.getenv('LD_LIBRARY_PATH')         )
-      qsubfile.write("/home/fuentes/LIBRARIES/MPI/mvapich-1.1-intel-10.1/bin/mpirun -np $NSLOTS -machinefile $TMP/machines /share/work/fuentes/exec/dddas_intel-10.1-mvapich-1.1-cxx-opt  %s" % runtime_options)
+      qsubfile.write("#$ -v LD_LIBRARY_PATH,PATH,WORK,COMPILER\n")
+      qsubfile.write("#$ -v MPI_VERSION,METHOD=opt \n" )
+      qsubfile.write("mpirun -np $NSLOTS -machinefile $TMP/machines $WORK/exec/dddas_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s " % runtime_options )
       # ensure entire file written before continuing
       qsubfile.close; qsubfile.flush() 
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
