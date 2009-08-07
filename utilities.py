@@ -196,6 +196,24 @@ def pause_until_ready():
    print "\ncontinuing......"
    return
 
+# don't run too many
+def verify_job_submission(numJob,Nmax):
+   if( numJob  > Nmax ) : 
+     print "\n\n    %d jobs > %d job \n\n" % (numJob,Nmax)
+     # sit idle until user inputs ready to continue
+     status = "i"
+     while(status != "c"):
+        try: 
+           print "(c)ontinue (q)uit"
+           status = sys.stdin.read()
+           if(status == "q"):
+             print "\n\n    quitting"
+             sys.exit(0) 
+        except KeyboardInterrupt: 
+           pass
+     print "\ncontinuing......"
+   return
+
 # create directory hierarchy to store files
 def create_directories(JobID,JobName):
    os.system('mkdir -p %s/%s/files  ' %  (JobID,JobName)  )
