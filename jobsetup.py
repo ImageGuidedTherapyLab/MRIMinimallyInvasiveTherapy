@@ -224,7 +224,10 @@ def setuplitt(config):
       except AssertionError:
         timePowerList = map(utilities.ExtractListData,  powerdata.split("@"))
         # write default power file 
-        Maxtime = 180
+        noptsteps   = config.getint( "qoi_0" ,"noptsteps" )
+        numideal    = config.getint( "qoi_0" ,"numideal"  )
+        MRTI_ntime  = config.getint( "mrti"  ,"ntime"     )
+        Maxtime = max(time_window[1] + numideal * (noptsteps-1),MRTI_ntime)
         utilities.write_power_file(Maxtime,timePowerList,
                                    "%s/%s/files/power.dat" % (jobid,namejob)) 
       cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )

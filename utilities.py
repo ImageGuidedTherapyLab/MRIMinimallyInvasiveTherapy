@@ -50,6 +50,7 @@ def control_defaults(controlfile):
    cntrldflt.set("output"      ,      "mrtirawiv"  ,"False"            )
    cntrldflt.set("output"      ,      "mriavs"     ,"False"            )
    cntrldflt.set("output"      ,      "mrirawiv"   ,"False"            )
+   cntrldflt.set("qoi_0"       ,   "noptsteps"     ,       "1"         )
    cntrldflt.set("qoi_0"       ,   "optimize_w_0"  ,   "False"         )
    cntrldflt.set("qoi_0"       ,   "optimize_k_0"  ,   "False"         )
    cntrldflt.set("qoi_0"       ,   "optimize_k_1"  ,   "False"         )
@@ -248,7 +249,33 @@ def ExtractListData(x):
      dataList = map(float, entries)
    return dataList
 
-#assume ListString of the form ="[18,234,13];[58];[873,12,321,235];[1,0]"
+# the data structure is setup as follows and ASSUMES equispace time 
+#     distances, IDEAL_DT   \forall i
+#  
+#                                           *NOTE* closed at beginning
+# time = 0    ---------                        BUT open   at end
+#                 |                                |
+#                 |                               \|/
+#              Power[0]    power between time = [0,1)  is Power[0]
+#                 |            
+#                 |
+# time = 1    ---------
+#                 |
+#                 |          
+#              Power[1]    power between time = [1,2)  is Power[1]   
+#                 |         
+#                 |
+# time = 2    ---------
+#                 |
+#                 |        
+#              Power[2]    power between time = [2,3)  is Power[2]
+#                 |       
+#                 |
+# time = 3    ---------
+#           .
+#           .
+#           .
+#           .
 def write_power_file(Maxtime,timePowerList,Filename):
    # error check sorting
    assert timePowerList[0] == sorted(timePowerList[0])
@@ -256,12 +283,13 @@ def write_power_file(Maxtime,timePowerList,Filename):
    if ( timePowerList[0][len(timePowerList[0])-1] < Maxtime ):
       timePowerList[0].append(Maxtime)
       timePowerList[1].append(0.0)
-   timeID = 1
+   intervalID = 0
    powerFile=open(Filename ,"w")
    for iBound in timePowerList[0]:
-     while (timeID < iBound):
-      powerFile.write("%f\n"% timePowerList[1][timePowerList[0].index(iBound)])
-      timeID = timeID + 1 
+     while (intervalID < iBound):
+      powerFile.write("%d %f\n"% \
+                (intervalID, timePowerList[1][timePowerList[0].index(iBound)]) )
+      intervalID = intervalID + 1 
    powerFile.close; powerFile.flush()
    return 
    
