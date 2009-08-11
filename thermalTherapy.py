@@ -51,8 +51,6 @@ else:
 # loop over the job in the list JOBS and run the code for each one
 CODEEXEC=[] 
 for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
-   # create directories
-   utilities.create_directories(jobid,namejob)
    # write control file with additional parameters
    inifile=open("%s/%s/files/control.ini" % (jobid,namejob) ,"w")
    cntrlfile.write(inifile)

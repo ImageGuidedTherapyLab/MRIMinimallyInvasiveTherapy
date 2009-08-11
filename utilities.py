@@ -240,15 +240,19 @@ def variable_range(IniFile,ParamID,mapping="linear",LB="lb",UB="ub"):
    return map(mappingfunction,range(1,ndiv+1))
 
 #assume ListString of the form ="[18,234,13];[58];[873,12,321,235];[1,0]"
-def ExtractIntData(x):
+def ExtractListData(x):
    entries = filter(len,filter(len,x.split("["))[0].split("]"))[0].split(",")
-   return map(int, entries)
+   try:
+     dataList = map(int, entries)
+   except ValueError:
+     dataList = map(float, entries)
+   return dataList
    
 
 #debugging
 if __name__ == "__main__":
    x = "[18,234,13];[58];[873,12,321,235];[1,0]"
-   y = map(ExtractIntData,x.split(";"))
+   y = map(ExtractListData,x.split(";"))
    print y
 
 def singlehistory():

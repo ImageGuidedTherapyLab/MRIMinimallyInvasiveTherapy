@@ -52,7 +52,7 @@ def setuplitt(config):
    listk_0_field = config.get("field","k_0_field").split(Delimiter)
    #assumed of the form time_window_list "[18,234];[13,58];[12,321];[0,1]"
    time_window_list= config.get("qoi_0","init_time_window")
-   listtime_window = map(utilities.ExtractIntData,time_window_list.split(";"))
+   listtime_window = map(utilities.ExtractListData,time_window_list.split(Delimiter))
 
    # method list
    listmethod  = config.get("compexec","method").split(Delimiter)
@@ -173,6 +173,8 @@ def setuplitt(config):
           k_0_field,k_0_ub,k_1_ub,objective,time_window,pde) in paramlist:
       # create directory hierarchy to store files
       namejob= "%s%02d" % (jobid,id)
+      # create directories
+      utilities.create_directories(jobid,namejob)
       fcnvalfile.write("echo %s using pde %s \n" % (namejob,pde))
       fcnvalfile.write("grep 'Function value' %s/out.o* | head -1 \n" % namejob)
       fcnvalfile.write("grep  func_eval       %s/out.o* | tail -1 \n" % namejob)
@@ -216,9 +218,12 @@ def setuplitt(config):
       numproc = listnumproc[numproclistid]
       cntrlfile.set("compexec" ,"numproc", numproc )
       # set power file 
-      cntrlfile.set("compexec" ,"powerdata"   , powerdata )
       if( not os.path.exists( powerdata )):
-         raise IOError("\n\n    error with %s " % powerdata)
+        timePowerList = map(utilities.ExtractListData,  powerdata.split("@"))
+        # write default power file 
+        utilities.write_power_file(timePowerList,"files/power.dat") 
+      else:
+        cntrlfile.set("compexec" ,"powerdata"   , powerdata )
       cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )
       cntrlfile.set("qoi_0","optimize_k_0"     ,     optimize_k_0      )
       cntrlfile.set("qoi_0","optimize_k_1"     ,     optimize_k_1      )
@@ -257,7 +262,7 @@ def setupkalman(iniFile):
    
    # variations in ROI 
    # assumed of the form [ix,nx,iy,ny];[ix,nx,iy,ny];...
-   roiList = map(utilities.ExtractIntData,
+   roiList = map(utilities.ExtractListData,
                    iniFile.get("kalman","roi").split(Delimiter))
 
    # variations in solution methods
@@ -300,6 +305,8 @@ def setupkalman(iniFile):
    id = 0 
    for (numproc,cmdLine_options,method) in paramlist:
       namejob= "%s%02d" % (jobid,id)
+      # create directories
+      utilities.create_directories(jobid,namejob)
       joblist.append( [namejob, numproc, cmdLine_options, iniFile, method]   )
       id = id + 1 
 
