@@ -51,8 +51,14 @@ else:
 # loop over the job in the list JOBS and run the code for each one
 CODEEXEC=[] 
 for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
+   # code execution on mda cluster
+   if(comphost.split(".")[0] == "cn285" 
+                    or 
+      comphost.split(".")[0] == "cn286" ):
+      execcode="cd %s/%s/%s ; bsub -J  %s -n %d -o out.o -e err.o /opt/hpmpi/bin/mpirun -d -prot -srun $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (workdir,jobid,namejob,namejob,numproc,
+                       Executable,base_options,param_options)
    # code execution on shamu
-   if(comphost.split(".")[0] == "shamu"):
+   elif(comphost.split(".")[0] == "shamu"):
       # write a qsub file
       qsubfile=open("%s/%s/%s/%s.qsub" %(workdir,jobid,namejob,namejob) ,"w")
       qsubfile.write("#!/bin/bash              \n"           )
