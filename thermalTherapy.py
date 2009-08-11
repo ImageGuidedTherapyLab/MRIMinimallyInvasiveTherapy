@@ -7,44 +7,57 @@ import ConfigParser
 controlfile = sys.argv[1]
 
 #read the main control file
-iniFile= ConfigParser.ConfigParser()
+iniFile = utilities.control_defaults(controlfile) 
 iniFile.readfp( open("%s" % controlfile , "r") )
 
 #get the jobid
 checkid = iniFile.get("compexec","jobid")
 jobid   = utilities.checkprevious(checkid)
 iniFile.set("compexec","jobid",jobid)
-Executable = iniFile.get(   "compexec" ,"executable")
+Executable = iniFile.get( "compexec" ,"executable")
+
+print iniFile.get("compexec","comphost")
+#get the computation host information
+[comphost,loccomphost,compendian,workdir] = \
+         utilities.hostinformation(iniFile,"compexec","comphost","workdir")
+
+#constant runtime options
+runtime_options = iniFile.get("compexec","runtime_options")
 
 if(Executable == "image"):
+
   #get input/output parameters
   ExamPath = iniFile.get(   "mrti" ,"exampath")
   DirId    = iniFile.getint("mrti" ,"dirid")
   OutputDir= "mrivis"
   
-  #constant runtime options
-  runtime_options = iniFile.get("compexec","runtime_options")
-  iobase_options = " %s %d %s %s " % (ExamPath,DirId,OutputDir,runtime_options) 
+  # constant runtime options
+  base_options = " %s %d %s %s " % (ExamPath,DirId,OutputDir,runtime_options) 
   
   #build list of jobs to run
   JOBS=jobsetup.setupkalman(iniFile) 
+
 elif(Executable == "thermalTherapy" or Executable == "dddas"):
+
   #build list of jobs to run
   JOBS=jobsetup.setuplitt(iniFile) 
-else:
-  raise "unknown executable"
 
-#get the computation host information
-[comphost,loccomphost,compendian,workdir] = \
-         utilities.hostinformation(iniFile,"compexec","comphost","workdir")
+  # constant runtime options
+  base_options = runtime_options
+
+else:
+  raise ValueError("unknown executable %s " % Executable )
 
 # loop over the job in the list JOBS and run the code for each one
-CODEEXEC=[] ; id = 0
-for (numproc,param_options,method) in JOBS:
+CODEEXEC=[] 
+for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
    # create directories
-   namejob= "%s%02d" % (jobid,id)
-   id = id + 1
    utilities.create_directories(jobid,namejob)
+   # write control file with additional parameters
+   inifile=open("%s/%s/files/control.ini" % (jobid,namejob) ,"w")
+   cntrlfile.write(inifile)
+   inifile.close
+   inifile.flush() # ensure the entire file is written before continuing
    # code execution on shamu
    if(comphost.split(".")[0] == "shamu"):
       # write a qsub file
@@ -56,13 +69,14 @@ for (numproc,param_options,method) in JOBS:
       qsubfile.write("#$ -S /bin/bash          \n"           )
       qsubfile.write("#$ -v LD_LIBRARY_PATH,PATH,WORK,COMPILER\n")
       qsubfile.write("#$ -v MPI_VERSION,METHOD=%s \n" % method)
-      qsubfile.write("mpirun -np $NSLOTS -machinefile $TMP/machines $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (Executable,iobase_options, param_options))
+      qsubfile.write("mpirun -np $NSLOTS -machinefile $TMP/machines $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (Executable,base_options, param_options))
       # ensure entire file written before continuing
       qsubfile.close; qsubfile.flush() 
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
                          (workdir,jobid,namejob,namejob)
    else: # default code execution
-      raise "unknown host"
+      execcode="cd %s/%s/%s ; mpirun -n %d $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (workdir,jobid,namejob,numproc,
+                       Executable,base_options,param_options)
    CODEEXEC.append(execcode)
 
 execMETH= ";".join(CODEEXEC)

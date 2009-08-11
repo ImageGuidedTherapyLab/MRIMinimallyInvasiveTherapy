@@ -21,55 +21,20 @@ def control_defaults(controlfile):
    cntrldflt.add_section("avs")
    cntrldflt.add_section("source_laser")
    cntrldflt.add_section("registration")
-   cntrldflt.add_section("thermalcond")
-   cntrldflt.add_section("perfusivity")
-   cntrldflt.add_section("cauchy_boundary")
-   cntrldflt.add_section("neumann_boundary")
-   cntrldflt.add_section("hp3d")
+   cntrldflt.add_section("thermal_conductivity")
+   cntrldflt.add_section("perfusion")
+   cntrldflt.add_section("bc")
    cntrldflt.add_section("field")
    cntrldflt.add_section("qoi_0")
    cntrldflt.add_section("visualase")
-   cntrldflt.set("field"        ,  "w_0_field"     ,      "False"      )
-   cntrldflt.set("field"        ,  "k_0_field"     ,      "False"      )
-   cntrldflt.set("hp3d"        ,       "pde"       ,"nonlinpennesisolaser")
-   cntrldflt.set("compexec"    ,    "setupjob"     ,    "param_study"  )
+   cntrldflt.set("field"       ,  "w_0_field"      ,      "False"      )
+   cntrldflt.set("field"       ,  "k_0_field"      ,      "False"      )
    cntrldflt.set("visualase"   ,"visualase_file"   ,"mlat.dat"         )
    cntrldflt.set("visualase"   ,"visualase_dir"    ,    "/tmp"         )
    cntrldflt.set("visualase"   ,  "override"       ,      "False"      )
    cntrldflt.set("visualase"   ,  "override_power" ,       "0.0"       )
-   cntrldflt.set("compexec"    ,     "vary_k_0"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_k_1"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_k_2"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_k_3"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_w_0"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_w_n"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_w_i"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_w_d"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_w_2"    ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_w_ni"   ,      "False"      ) 
-   cntrldflt.set("compexec"    ,     "vary_w_id"   ,      "False"      ) 
-   cntrldflt.set("compexec"    ,   "vary_method"   ,      "False"      ) 
-   cntrldflt.set("compexec"    ,   "vary_g_flux"   ,      "False"      ) 
-   cntrldflt.set("compexec"    , "vary_coeff_cool" ,      "False"      ) 
-   cntrldflt.set("compexec"    ,"vary_optimize_w_0",      "False"      ) 
-   cntrldflt.set("compexec"    ,"vary_optimize_k_0",      "False"      ) 
-   cntrldflt.set("compexec"    ,"vary_optimize_k_1",      "False"      ) 
-   cntrldflt.set("compexec"    ,"vary_optimize_k_2",      "False"      ) 
-   cntrldflt.set("compexec"    ,"vary_optimize_k_3",      "False"      ) 
-   cntrldflt.set("compexec"    ,"vary_optimize_pow",      "False"      ) 
-   cntrldflt.set("compexec"    ,"vary_optimize_mu_a",     "False"      ) 
-   cntrldflt.set("compexec"    ,"vary_optimize_mu_s",     "False"      ) 
-   cntrldflt.set("compexec"    ,   "vary_k_0_ub"   ,      "False"      ) 
-   cntrldflt.set("compexec"    ,   "vary_k_1_ub"   ,      "False"      ) 
-   cntrldflt.set("compexec"    , "vary_k_0_field"  ,      "False"      ) 
-   cntrldflt.set("compexec"    , "vary_w_0_field"  ,      "False"      ) 
-   cntrldflt.set("compexec"    , "vary_objective"  ,      "False"      ) 
-   cntrldflt.set("compexec"    ,   "vary_pde"      ,      "False"      ) 
-   cntrldflt.set("compexec"    ,   "vary_mesh"     ,        "0"        ) 
-   cntrldflt.set("compexec"    ,  "vary_power"     ,        "0"        ) 
-   cntrldflt.set("compexec"    ,  "vary_proc"      ,        "0"        ) 
-   cntrldflt.set("compexec"    , "vary_time_window",      "False"      ) 
-   cntrldflt.set("compexec"    ,   "vary_mc_file"  ,      "False"      ) 
+   cntrldflt.set("compexec"    ,    "method"       ,      "opt"        )
+   cntrldflt.set("compexec"    ,     "comphost"    , socket.gethostname().split(".")[0]) 
    cntrldflt.set("mrti"        ,"img_sizefile"     ,"mrtiimg.size"     )    
    cntrldflt.set("mrti"        ,"nzero"            ,        "0"        )    
    cntrldflt.set("avs"         ,"mrtivis_sizefile" ,"mrtivis.size"     )    
@@ -93,27 +58,27 @@ def control_defaults(controlfile):
    cntrldflt.set("qoi_0"       ,   "optimize_pow"  ,   "False"         )
    cntrldflt.set("qoi_0"       ,   "optimize_mu_a" ,   "False"         )
    cntrldflt.set("qoi_0"       ,   "optimize_mu_s" ,   "False"         )
-   cntrldflt.set("thermalcond" ,     "k_0_lb"      ,   "0.40e0 "       )
-   cntrldflt.set("thermalcond" ,     "k_1_lb"      ,   "0.0e0  "       )
-   cntrldflt.set("thermalcond" ,     "k_2_lb"      ,   "1.0e-2 "       )
-   cntrldflt.set("thermalcond" ,     "k_3_lb"      ,   "305.0e0"       )
-   cntrldflt.set("thermalcond" ,     "k_0_ub"      ,   "0.72e0 "       )
-   cntrldflt.set("thermalcond" ,     "k_1_ub"      ,   "0.33e0 "       )
-   cntrldflt.set("thermalcond" ,     "k_2_ub"      ,   "10.0e0 "       )
-   cntrldflt.set("thermalcond" ,     "k_3_ub"      ,   "325.0e0"       )
-   cntrldflt.set("perfusivity" ,     "w_0_lb"      ,   " 6.0e0 "       )
-   cntrldflt.set("perfusivity" ,     "w_0_ub"      ,   " 50.0e0"       )
-   cntrldflt.set("perfusivity" ,     "w_n_lb"      ,   " 4.0e0 "       )
-   cntrldflt.set("perfusivity" ,     "w_n_ub"      ,   "20.0e0 "       )
-   cntrldflt.set("perfusivity" ,     "w_i_lb"      ,   "20.0e0 "       )
-   cntrldflt.set("perfusivity" ,     "w_i_ub"      ,   " 1.0e2 "       )
-   cntrldflt.set("perfusivity" ,     "w_d_lb"      ,   " 0.0e0 "       )
-   cntrldflt.set("perfusivity" ,     "w_d_ub"      ,   " 4.0e0 "       )
-   cntrldflt.set("perfusivity" ,     "w_2_lb"      ,   " 1.0e-1"       )
-   cntrldflt.set("perfusivity" ,     "w_2_ub"      ,   " 10.0e0"       )
-   cntrldflt.set("perfusivity" ,     "W_NID_LB"    ,   "300.0e0"       )
-   cntrldflt.set("perfusivity" ,     "W_NID_MD"    ,   "315.0e0"       )
-   cntrldflt.set("perfusivity" ,     "W_NID_UB"    ,   "335.0e0"       )
+   cntrldflt.set("thermal_conductivity" , "k_0_lb"   ,   "0.40e0 "       )
+   cntrldflt.set("thermal_conductivity" , "k_1_lb"   ,   "0.0e0  "       )
+   cntrldflt.set("thermal_conductivity" , "k_2_lb"   ,   "1.0e-2 "       )
+   cntrldflt.set("thermal_conductivity" , "k_3_lb"   ,   "305.0e0"       )
+   cntrldflt.set("thermal_conductivity" , "k_0_ub"   ,   "0.72e0 "       )
+   cntrldflt.set("thermal_conductivity" , "k_1_ub"   ,   "0.33e0 "       )
+   cntrldflt.set("thermal_conductivity" , "k_2_ub"   ,   "10.0e0 "       )
+   cntrldflt.set("thermal_conductivity" , "k_3_ub"   ,   "325.0e0"       )
+   cntrldflt.set("perfusion"            , "w_0_lb"   ,   " 6.0e0 "       )
+   cntrldflt.set("perfusion"            , "w_0_ub"   ,   " 50.0e0"       )
+   cntrldflt.set("perfusion"            , "w_n_lb"   ,   " 4.0e0 "       )
+   cntrldflt.set("perfusion"            , "w_n_ub"   ,   "20.0e0 "       )
+   cntrldflt.set("perfusion"            , "w_i_lb"   ,   "20.0e0 "       )
+   cntrldflt.set("perfusion"            , "w_i_ub"   ,   " 1.0e2 "       )
+   cntrldflt.set("perfusion"            , "w_d_lb"   ,   " 0.0e0 "       )
+   cntrldflt.set("perfusion"            , "w_d_ub"   ,   " 4.0e0 "       )
+   cntrldflt.set("perfusion"            , "w_2_lb"   ,   " 1.0e-1"       )
+   cntrldflt.set("perfusion"            , "w_2_ub"   ,   " 10.0e0"       )
+   cntrldflt.set("perfusion"            , "W_NID_LB" ,   "300.0e0"       )
+   cntrldflt.set("perfusion"            , "W_NID_MD" ,   "315.0e0"       )
+   cntrldflt.set("perfusion"            , "W_NID_UB" ,   "335.0e0"       )
    cntrldflt.set("source_laser",     "anfact"      ,   "0.71e0"        )
    cntrldflt.set("source_laser",     "anfact_lb"   ,   "0.6e0"         )
    cntrldflt.set("source_laser",     "anfact_ub"   ,   "1.0e0"         )
@@ -123,10 +88,10 @@ def control_defaults(controlfile):
    cntrldflt.set("source_laser",     "mu_a_UB"     ,   "0.60e+2"       )
    cntrldflt.set("source_laser",     "mu_s_LB"     ,   "2.0e+2"        )
    cntrldflt.set("source_laser",     "mu_s_UB"     ,   "2820.0e+2"     )
-   cntrldflt.set("cauchy_boundary" ,"coeff_cool_LB",     "0.1e0"       )
-   cntrldflt.set("cauchy_boundary" ,"coeff_cool_UB",   "112.0e0"       )
-   cntrldflt.set("neumann_boundary", "g_flux_LB"   ,     "0.1e0"       )
-   cntrldflt.set("neumann_boundary", "g_flux_UB"   ,   "112.0e0"       )
+   cntrldflt.set(    "bc"      ,  "newton_coeff_LB",     "0.1e0"       )
+   cntrldflt.set(    "bc"      ,  "newton_coeff_UB",   "112.0e0"       )
+   cntrldflt.set(    "bc"      ,   "u_flux_LB"     ,     "0.1e0"       )
+   cntrldflt.set(    "bc"      ,   "u_flux_UB"     ,   "112.0e0"       )
    cntrldflt.set("registration",  "registration"   ,    "False"        )
    cntrldflt.set("registration","interop_dicom_dir",       ""          )
    cntrldflt.set("registration","dicomconvert"     ,"DicomSeriesConvert" )
@@ -139,26 +104,26 @@ def control_defaults(controlfile):
    cntrldflt.set("registration", "subsamplefactorZ",      "1"          ) 
 
    #set some defaults based on an initial read of the control file
-   scratchini = ConfigParser.ConfigParser()
-   scratchini.readfp( open("%s" % controlfile , "r") )
-   comphost = scratchini.get("compexec","comphost")
-   reghost  = scratchini.get("registration","reghost")
-   if(reghost.split(".")[0]=="mav1" or reghost.split(".")[0]=="maverick"):
-     registration_dir  = "/home/utexas/iv/fuentes/registration"
-   elif(reghost.split(".")[0]=="DIPWS019"):
-     registration_dir  = "/home/dfuentes/DDDAS/trunk/registration"
-   else:
-     registration_dir  = "/org/groups/oden/fuentes/DDDAS/trunk/registration"
-   if(comphost.split(".")[0]=="lonestar"):
-     comp_rank_begin=4
-   elif(comphost.split(".")[0]=="shamu"):
-     comp_rank_begin=8
-   else:
-     comp_rank_begin=1
+   #scratchini = ConfigParser.ConfigParser()
+   #scratchini.readfp( open("%s" % controlfile , "r") )
+   #comphost = scratchini.get("compexec","comphost")
+   #reghost  = scratchini.get("registration","reghost")
+   #if(reghost.split(".")[0]=="mav1" or reghost.split(".")[0]=="maverick"):
+   #  registration_dir  = "/home/utexas/iv/fuentes/registration"
+   #elif(reghost.split(".")[0]=="DIPWS019"):
+   #  registration_dir  = "/home/dfuentes/DDDAS/trunk/registration"
+   #else:
+   #  registration_dir  = "/org/groups/oden/fuentes/DDDAS/trunk/registration"
+   #if(comphost.split(".")[0]=="lonestar"):
+   #  comp_rank_begin=4
+   #elif(comphost.split(".")[0]=="shamu"):
+   #  comp_rank_begin=8
+   #else:
+   #  comp_rank_begin=1
 
-   cntrldflt.set("registration","registration_dir" ,   registration_dir    )
-   cntrldflt.set("compexec"    ,"data_rank_begin"  ,         "1"           )
-   cntrldflt.set("compexec"    ,"comp_rank_begin"  ,"%d" % comp_rank_begin )
+   #cntrldflt.set("registration","registration_dir" ,   registration_dir    )
+   #cntrldflt.set("compexec"    ,"data_rank_begin"  ,         "1"           )
+   #cntrldflt.set("compexec"    ,"comp_rank_begin"  ,"%d" % comp_rank_begin )
 
    return cntrldflt
 
@@ -240,7 +205,9 @@ def endian(Host):
       return "litend" 
 
 def hostinformation(IniFile,Section,Hosttype,Workdir):
+   print "hello" , Section, Hosttype
    host    = IniFile.get(Section,Hosttype) # host name
+   print "host", host
    lochost = location(host,Hosttype) # lochost = false ==> remote host
    hostendian = endian(host)   # endianess of host
    if(lochost): # for local host set work directory to $CWD

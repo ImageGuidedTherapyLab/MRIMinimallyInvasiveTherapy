@@ -20,11 +20,11 @@ def setuplitt(config):
    workdir = config.get( "compexec" , "workdir" ) 
    jobid   = config.get( "compexec" , "jobid" ) 
    #default lists
-   listk_0  = map(float,config.get("thermal_conductivity","k_0").split(Delimiter))
+   listk_0  = map(float,config.get("thermal_conductivity","k_0_healthy").split(Delimiter))
    listk_1  = map(float,config.get("thermal_conductivity","k_1").split(Delimiter))
    listk_2  = map(float,config.get("thermal_conductivity","k_2").split(Delimiter))
    listk_3  = map(float,config.get("thermal_conductivity","k_3").split(Delimiter))
-   listw_0  = map(float,config.get("perfusion","w_0").split(Delimiter))
+   listw_0  = map(float,config.get("perfusion","w_0_healthy").split(Delimiter))
    listw_n  = map(float,config.get("perfusion","w_n").split(Delimiter))
    listw_i  = map(float,config.get("perfusion","w_i").split(Delimiter))
    listw_d  = map(float,config.get("perfusion","w_d").split(Delimiter))
@@ -35,7 +35,7 @@ def setuplitt(config):
    listy_0  = map(float,config.get("probe","y_0").split(Delimiter))
    listz_0  = map(float,config.get("probe","z_0").split(Delimiter))
    listu_flux     = map(float,config.get("bc","u_flux").split(Delimiter)) 
-   listcoeff_cool = map(float,config.get("bc","newton_coeff").split(Delimiter)) 
+   listnewton_coeff = map(float,config.get("bc","newton_coeff").split(Delimiter)) 
    listoptimize_w_0 = config.get("qoi_0","optimize_w_0").split(Delimiter)
    listoptimize_k_0 = config.get("qoi_0","optimize_k_0").split(Delimiter)
    listoptimize_k_1 = config.get("qoi_0","optimize_k_1").split(Delimiter)
@@ -44,26 +44,34 @@ def setuplitt(config):
    listoptimize_pow = config.get("qoi_0","optimize_pow").split(Delimiter)
    listoptimize_mu_a= config.get("qoi_0","optimize_mu_a").split(Delimiter)
    listoptimize_mu_s= config.get("qoi_0","optimize_mu_s").split(Delimiter)
-   listk_1_ub = map(float,config.getfloat("thermalcond","k_1_ub").split(Delimiter))
-   listk_0_ub = map(float,config.getfloat("thermalcond","k_0_ub").split(Delimiter))
+   listk_1_ub = map(float,config.get("thermal_conductivity","k_1_ub").split(Delimiter))
+   listk_0_ub = map(float,config.get("thermal_conductivity","k_0_ub").split(Delimiter))
    listpde = config.get("method","pde").split(Delimiter)
    listqoi = config.get("method","qoi").split(Delimiter)
    listw_0_field = config.get("field","w_0_field").split(Delimiter)
    listk_0_field = config.get("field","k_0_field").split(Delimiter)
    #assumed of the form time_window_list "[18,234];[13,58];[12,321];[0,1]"
-   time_window_list= config.get("compexec","listtime_window")
+   time_window_list= config.get("qoi_0","init_time_window")
    listtime_window = map(utilities.ExtractIntData,time_window_list.split(";"))
 
-   listmethod       = [" "]
-
+   # method list
+   listmethod  = config.get("compexec","method").split(Delimiter)
 
    # laser params default from control file
-   listmu_a   = map(float,config.getfloat("source_laser","mu_a").split(Delimiter))
-   listmu_s   = map(float,config.getfloat("source_laser","mu_s").split(Delimiter))
-   listanfact = map(float,config.getfloat("source_laser","anfact").split(Delimiter))
+   listmu_a   = map(float,config.get("optical","mu_a_healthy").split(Delimiter))
+   listmu_s   = map(float,config.get("optical","mu_s_healthy").split(Delimiter))
+   listanfact = map(float,config.get("optical","anfact").split(Delimiter))
 
-   # get mesh data and power data info
+   # get mesh data and # proc info
+   # repeat mesh for speedup plot
    listmeshfile =config.get("compexec","meshdata" ).split(Delimiter) 
+   listnumproc = map(int,config.get("compexec","numproc").split(Delimiter))
+
+   # error check
+   if( len(listnumproc) != len(listmeshfile) ): 
+       raise IndexError("\n\n  len(listnumproc) != len(listmeshfile)  Need number of procs for each mesh... repeat mesh for speedup plot")
+
+   # power data
    listpowerfile=config.get("compexec","powerdata").split(Delimiter)  
 
    # echo params
@@ -84,8 +92,8 @@ def setuplitt(config):
    print "listmu_a      "      , listmu_a      
    print "listmu_s      "      , listmu_s      
    print "listanfact    "      , listanfact    
-   print "listg_flux    "      , listg_flux    
-   print "listcoeff_cool"      , listcoeff_cool
+   print "listu_flux    "      , listu_flux    
+   print "listnewton_coeff"    , listnewton_coeff
    print "listmethod"          , listmethod
    print "listoptimize_w_0"    , listoptimize_w_0
    print "listoptimize_k_0"    , listoptimize_k_0
@@ -97,21 +105,22 @@ def setuplitt(config):
    print "listoptimize_mu_s"   , listoptimize_mu_s
    print "listk_0_ub"          , listk_0_ub
    print "listk_1_ub"          , listk_1_ub
-   print "listmeshcmd"         , listmeshcmd
+   print "listmeshfile"        , listmeshfile
+   print "listpowerfile"       , listpowerfile
    print "listpde"             , listpde
-   print "listqoi"       , listqoi
+   print "listqoi"             , listqoi
    print "listw_0_field"       , listw_0_field 
    print "listk_0_field"       , listk_0_field 
    print "listtime_window"     , listtime_window 
-   print "mc_filecmd"          , mc_filecmd 
    #use list comprehension to build entire set of parameter list
-   paramlist =[ (meshcmditer,
+   paramlist =[ (meshdata,powerdata,
                  k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
-                 mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
+                 mu_s,mu_a,anfact,u_flux,newton_coeff, method, optimize_w_0,
                  optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
                  optimize_pow, optimize_mu_a, optimize_mu_s, 
                  w_0_field, k_0_field,k_0_ub,k_1_ub,objective,time_window,pde)
-                    for meshcmditer      in listmeshcmd   
+                    for meshdata         in listmeshfile   
+                    for powerdata        in listpowerfile   
                     for k_0              in listk_0 
                     for k_1              in listk_1 
                     for k_2              in listk_2 
@@ -129,8 +138,8 @@ def setuplitt(config):
                     for mu_s             in listmu_s
                     for mu_a             in listmu_a 
                     for anfact           in listanfact 
-                    for g_flux           in listg_flux 
-                    for coeff_cool       in listcoeff_cool
+                    for u_flux           in listu_flux 
+                    for newton_coeff     in listnewton_coeff
                     for method           in listmethod      
                     for optimize_w_0     in listoptimize_w_0  
                     for optimize_k_0     in listoptimize_k_0  
@@ -156,68 +165,60 @@ def setuplitt(config):
    #create script to process the optimization iteration function value outputs
    fcnvalfile=open("%s/printvalue.txt" % jobid ,"w")
 
-   for (meshcmditer,
+   for (meshdata,powerdata,
           k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
-          mu_s,mu_a,anfact,g_flux,coeff_cool, method, optimize_w_0,
+          mu_s,mu_a,anfact,u_flux,newton_coeff, method, optimize_w_0,
           optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
           optimize_pow, optimize_mu_a, optimize_mu_s, w_0_field, 
           k_0_field,k_0_ub,k_1_ub,objective,time_window,pde) in paramlist:
-      # extract variables from iterator
-      meshcmd       = meshcmditer[0]
-      numproclistid = meshcmditer[1]
       # create directory hierarchy to store files
       namejob= "%s%02d" % (jobid,id)
-      fcnvalfile.write("echo %s using %s \n" % (namejob,pde))
+      fcnvalfile.write("echo %s using pde %s \n" % (namejob,pde))
       fcnvalfile.write("grep 'Function value' %s/out.o* | head -1 \n" % namejob)
       fcnvalfile.write("grep  func_eval       %s/out.o* | tail -1 \n" % namejob)
       fcnvalfile.write("grep 'Function value' %s/out.o* | tail -1 \n" % namejob)
       fcnvalfile.write("grep 'Function value' %s/out.o* | cut  -d ' ' -f3,6 | cut -d ',' -f'1 2' --output-delimiter=' ' > %s/iter.dat \n" % (namejob,namejob))
       fcnvalfile.write("grep 'Function evaluation' %s/out.o* | cut  -d ':' -f3 | awk '{print NR $0}' > %s/func.dat \n" % (namejob,namejob))
-      print "creating job %s using %s " % (namejob,pde)
+      print "creating job %s using pde %s " % (namejob,pde)
       id = id + 1 # update counter
 
       # functions are call by reference need to deepcopy
       cntrlfile = copy.deepcopy(config) 
       cntrlfile.set(     "field"      ,"k_0_field"       ,  k_0_field        )
       cntrlfile.set(     "field"      ,"w_0_field"       ,  w_0_field        )
-      cntrlfile.set("thermalcond"     ,"k_0"             , "%f" % k_0        )
-      #cntrlfile.set("thermalcond"     ,"k_0"             , "%f" % k_0_ub     )
-      cntrlfile.set("thermalcond"     ,"k_0_ub"          , "%f" % k_0_ub     )
-      cntrlfile.set("thermalcond"     ,"k_1"             , "%f" % k_1        )
-      cntrlfile.set("thermalcond"     ,"k_1_ub"          , "%f" % k_1_ub     )
-      cntrlfile.set("thermalcond"     ,"k_2"             , "%f" % k_2        )
-      cntrlfile.set("thermalcond"     ,"k_3"             , "%f" % k_3        )
-      cntrlfile.set("perfusivity"     ,"w_0"             , "%f" % w_0        )
-      cntrlfile.set("perfusivity"     ,"w_n"             , "%f" % w_n        )
-      cntrlfile.set("perfusivity"     ,"w_i"             , "%f" % w_i        )
-      cntrlfile.set("perfusivity"     ,"w_d"             , "%f" % w_d        )
-      cntrlfile.set("perfusivity"     ,"w_2"             , "%f" % w_2        )
-      cntrlfile.set("perfusivity"     ,"w_ni"            , "%f" % w_ni       )
-      cntrlfile.set("perfusivity"     ,"w_id"            , "%f" % w_id       )
-      cntrlfile.set("source_laser"    ,"x_0"             , "%f" % x_0        ) 
-      cntrlfile.set("source_laser"    ,"y_0"             , "%f" % y_0        )
-      cntrlfile.set("source_laser"    ,"z_0"             , "%f" % z_0        )
-      cntrlfile.set("source_laser"    ,"mu_a"            , "%f" % mu_a       )
-      cntrlfile.set("source_laser"    ,"mu_s"            , "%f" % mu_s       )
-      cntrlfile.set("source_laser"    ,"anfact"          , "%f" % anfact     )
-      cntrlfile.set("neumann_boundary","g_flux"          , "%f" % g_flux     )
-      cntrlfile.set("cauchy_boundary" ,"coeff_cool"      , "%f" % coeff_cool )
-      runtime_options = cntrlfile.get( "compexec","runtime_options")
-      cntrlfile.set("compexec" ,"runtime_options", runtime_options + method )
-      cntrlfile.set("compexec" ,"numproc", numproclist[numproclistid])
-      # execute any mesh file and power file commands
-      if(os.system(meshcmd % (namejob,namejob))):
-         raise "\n\n    error with %s %% (%s,%s)" % (meshcmd,namejob,namejob)
-      # execute any mc grid commands, the grid numbering from the database
-      #  of mc grids must be used
-      indexmu_a   = databasemu_a.index(mu_a)
-      indexmu_s   = databasemu_s.index(mu_s)
-      indexanfact = databaseanfact.index(anfact)
-      ilocMCgrid = indexanfact + indexmu_a *len(databaseanfact) \
-                             + indexmu_s*len(databaseanfact)*len(databasemu_a) 
-      if(os.system(mc_filecmd % (ilocMCgrid,namejob))):
-         raise "\n\n    error with %s %% (%d,%s)" % \
-                                        (mc_filecmd,ilocMCgrid,namejob)
+      cntrlfile.set("thermal_conductivity" ,"k_0_healthy", "%f" % k_0        )
+      cntrlfile.set("thermal_conductivity" ,"k_0_ub"     , "%f" % k_0_ub     )
+      cntrlfile.set("thermal_conductivity" ,"k_1"        , "%f" % k_1        )
+      cntrlfile.set("thermal_conductivity" ,"k_1_ub"     , "%f" % k_1_ub     )
+      cntrlfile.set("thermal_conductivity" ,"k_2"        , "%f" % k_2        )
+      cntrlfile.set("thermal_conductivity" ,"k_3"        , "%f" % k_3        )
+      cntrlfile.set("perfusion"     ,"w_0_healthy"       , "%f" % w_0        )
+      cntrlfile.set("perfusion"     ,"w_n"             , "%f" % w_n        )
+      cntrlfile.set("perfusion"     ,"w_i"             , "%f" % w_i        )
+      cntrlfile.set("perfusion"     ,"w_d"             , "%f" % w_d        )
+      cntrlfile.set("perfusion"     ,"w_2"             , "%f" % w_2        )
+      cntrlfile.set("perfusion"     ,"w_ni"            , "%f" % w_ni       )
+      cntrlfile.set("perfusion"     ,"w_id"            , "%f" % w_id       )
+      cntrlfile.set("probe"         ,"x_0"             , "%f" % x_0        ) 
+      cntrlfile.set("probe"         ,"y_0"             , "%f" % y_0        )
+      cntrlfile.set("probe"         ,"z_0"             , "%f" % z_0        )
+      cntrlfile.set("optical"       ,"mu_a_healthy"    , "%f" % mu_a       )
+      cntrlfile.set("optical"       ,"mu_s_healthy"    , "%f" % mu_s       )
+      cntrlfile.set("optical"       ,"anfact"          , "%f" % anfact     )
+      cntrlfile.set("bc"            ,"u_flux"          , "%f" % u_flux     )
+      cntrlfile.set("bc"            ,"newton_coeff"    , "%f" % newton_coeff )
+      # set mesh file 
+      cntrlfile.set("compexec" ,"meshdata"    , meshdata )
+      if( not os.path.exists( meshdata )):
+         raise IOError("\n\n    error with %s " % meshdata)
+      # number of proc in listnumproc shoud coincide with mesh number
+      numproclistid = listmeshfile.index(meshdata)
+      numproc = listnumproc[numproclistid]
+      cntrlfile.set("compexec" ,"numproc", numproc )
+      # set power file 
+      cntrlfile.set("compexec" ,"powerdata"   , powerdata )
+      if( not os.path.exists( powerdata )):
+         raise IOError("\n\n    error with %s " % powerdata)
       cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )
       cntrlfile.set("qoi_0","optimize_k_0"     ,     optimize_k_0      )
       cntrlfile.set("qoi_0","optimize_k_1"     ,     optimize_k_1      )
@@ -226,11 +227,11 @@ def setuplitt(config):
       cntrlfile.set("qoi_0","optimize_pow"     ,     optimize_pow      )
       cntrlfile.set("qoi_0","optimize_mu_a"    ,     optimize_mu_a     )
       cntrlfile.set("qoi_0","optimize_mu_s"    ,     optimize_mu_s     )
-      cntrlfile.set("qoi_0",  "objective"      ,       objective       )
       cntrlfile.set("qoi_0","ideal_nzero_init" , "%d" % time_window[0] )
       cntrlfile.set("qoi_0","ideal_ntime_init" , "%d" % time_window[1] )
-      cntrlfile.set("hp3d" ,       "pde"       ,          pde          )
-      joblist.append([namejob,cntrlfile])
+      cntrlfile.set("method",     "qoi"        ,       objective       )
+      cntrlfile.set("method",     "pde"        ,          pde          )
+      joblist.append( [namejob, numproc, " ", cntrlfile, method]   )
    #close script
    fcnvalfile.close; fcnvalfile.flush()
    #make executable
@@ -249,7 +250,7 @@ def setupkalman(iniFile):
    x_0 = iniFile.getfloat("source_laser","x_0")
    y_0 = iniFile.getfloat("source_laser","y_0")
    z_0 = iniFile.getfloat("source_laser","z_0")
-   listk_0  = map(float,iniFile.get("thermalcond","k_0").split(Delimiter))
+   listk_0  = map(float,iniFile.get("thermal_conductivity","k_0").split(Delimiter))
    listw_0  = map(float,iniFile.get("perfusion","w_0").split(Delimiter))
    meascovList   = map(float,iniFile.get("kalman","meascov").split(Delimiter))
    statecovList  = map(float,iniFile.get("kalman","statecov").split(Delimiter))
@@ -273,7 +274,7 @@ def setupkalman(iniFile):
                     for linalg    in   linalgList
                     for solver    in   solverList
                   ]
-   cmdLine_list=[]
+   listcmdLine=[]
    for (nzero,ntime,meascov,statecov,roi,linalg,solver)  in cmdLineParams:
       cmdLineOpt  = "-nslice %d -nzero %d -ntime %d" % \
                          (MRTI_nslice,nzero,ntime)
@@ -285,17 +286,23 @@ def setupkalman(iniFile):
                            (roi[0],roi[1],roi[2],roi[3])
       cmdLineOpt  = cmdLineOpt  + \
                     " -method %d -solver %s" % (linalg,solver)
-      cmdLine_list.append( cmdLineOpt  )
+      listcmdLine.append( cmdLineOpt  )
 
    # variations in execution options
-   methodlist  = iniFile.get("compexec","method").split(Delimiter)
-   numproclist = map(int,iniFile.get("compexec","numproc").split(Delimiter))
+   listmethod  = iniFile.get("compexec","method").split(Delimiter)
+   listnumproc = map(int,iniFile.get("compexec","numproc").split(Delimiter))
 
-   joblist =[ (numproc,cmdLine_options,method) 
-                    for numproc          in numproclist 
-                    for cmdLine_options  in cmdLine_list 
-                    for method           in methodlist 
-            ]
+   paramlist =[ (numproc,cmdLine_options,method) 
+                    for numproc          in listnumproc 
+                    for cmdLine_options  in listcmdLine 
+                    for method           in listmethod 
+              ]
+   id = 0 
+   for (numproc,cmdLine_options,method) in paramlist:
+      namejob= "%s%02d" % (jobid,id)
+      joblist.append( [namejob, numproc, cmdLine_options, iniFile, method]   )
+      id = id + 1 
+
    # don't run too many
    utilities.verify_job_submission(len(joblist),40)
 
