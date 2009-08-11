@@ -218,12 +218,15 @@ def setuplitt(config):
       numproc = listnumproc[numproclistid]
       cntrlfile.set("compexec" ,"numproc", numproc )
       # set power file 
-      if( not os.path.exists( powerdata )):
+      try:
+        assert os.path.exists( powerdata )
+        cntrlfile.set("compexec" ,"powerdata"   , powerdata )
+      except AssertionError:
         timePowerList = map(utilities.ExtractListData,  powerdata.split("@"))
         # write default power file 
-        utilities.write_power_file(timePowerList,"files/power.dat") 
-      else:
-        cntrlfile.set("compexec" ,"powerdata"   , powerdata )
+        Maxtime = 180
+        utilities.write_power_file(Maxtime,timePowerList,
+                                   "%s/%s/files/power.dat" % (jobid,namejob)) 
       cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )
       cntrlfile.set("qoi_0","optimize_k_0"     ,     optimize_k_0      )
       cntrlfile.set("qoi_0","optimize_k_1"     ,     optimize_k_1      )

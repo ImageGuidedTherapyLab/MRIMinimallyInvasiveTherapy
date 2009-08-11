@@ -247,6 +247,23 @@ def ExtractListData(x):
    except ValueError:
      dataList = map(float, entries)
    return dataList
+
+#assume ListString of the form ="[18,234,13];[58];[873,12,321,235];[1,0]"
+def write_power_file(Maxtime,timePowerList,Filename):
+   # error check sorting
+   assert timePowerList[0] == sorted(timePowerList[0])
+   # extend if necessary
+   if ( timePowerList[0][len(timePowerList[0])-1] < Maxtime ):
+      timePowerList[0].append(Maxtime)
+      timePowerList[1].append(0.0)
+   timeID = 1
+   powerFile=open(Filename ,"w")
+   for iBound in timePowerList[0]:
+     while (timeID < iBound):
+      powerFile.write("%f\n"% timePowerList[1][timePowerList[0].index(iBound)])
+      timeID = timeID + 1 
+   powerFile.close; powerFile.flush()
+   return 
    
 
 #debugging
