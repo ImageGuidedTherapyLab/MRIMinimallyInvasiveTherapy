@@ -210,8 +210,13 @@ def setuplitt(config):
       cntrlfile.set("bc"            ,"u_flux"          , "%f" % u_flux     )
       cntrlfile.set("bc"            ,"newton_coeff"    , "%f" % newton_coeff )
       # set mesh file 
-      cntrlfile.set("compexec" ,"meshdata"    , meshdata )
-      if( not os.path.exists( meshdata )):
+      try:
+         assert os.path.exists( meshdata )
+         if( meshdata[0] == "/" ): # full path given
+           cntrlfile.set("compexec","meshdata",meshdata )
+         else:
+           cntrlfile.set("compexec","meshdata","%s/%s" % (os.getcwd(),meshdata))
+      except AssertionError:
          raise IOError("\n\n    error with %s " % meshdata)
       # number of proc in listnumproc shoud coincide with mesh number
       numproclistid = listmeshfile.index(meshdata)
@@ -220,7 +225,10 @@ def setuplitt(config):
       # set power file 
       try:
         assert os.path.exists( powerdata )
-        cntrlfile.set("compexec" ,"powerdata"   , powerdata )
+        if( powerdata[0] == "/" ): # full path given
+          cntrlfile.set("compexec","powerdata",powerdata )
+        else:
+          cntrlfile.set("compexec","powerdata","%s/%s" %(os.getcwd(),powerdata))
       except AssertionError:
         timePowerList = map(utilities.ExtractListData,  powerdata.split("@"))
         # write default power file 
@@ -229,7 +237,8 @@ def setuplitt(config):
         MRTI_ntime  = config.getint( "mrti"  ,"ntime"     )
         Maxtime = max(time_window[1] + numideal * (noptsteps-1),MRTI_ntime)
         utilities.write_power_file(Maxtime,timePowerList,
-                                   "%s/%s/files/power.dat" % (jobid,namejob)) 
+                                   "%s/%s/files/power.ini" % (jobid,namejob)) 
+        cntrlfile.remove_option("compexec","powerdata") # clean up
       cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )
       cntrlfile.set("qoi_0","optimize_k_0"     ,     optimize_k_0      )
       cntrlfile.set("qoi_0","optimize_k_1"     ,     optimize_k_1      )

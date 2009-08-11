@@ -280,14 +280,18 @@ def write_power_file(Maxtime,timePowerList,Filename):
    # error check sorting
    assert timePowerList[0] == sorted(timePowerList[0])
    # extend if necessary
+   timeUB = timePowerList[0][len(timePowerList[0])-1]
    if ( timePowerList[0][len(timePowerList[0])-1] < Maxtime ):
       timePowerList[0].append(Maxtime)
       timePowerList[1].append(0.0)
+      timeUB = Maxtime
    intervalID = 0
    powerFile=open(Filename ,"w")
+   powerFile.write("[power]\n")
+   powerFile.write("nsize = %d\n" % timeUB)
    for iBound in timePowerList[0]:
      while (intervalID < iBound):
-      powerFile.write("%d %f\n"% \
+      powerFile.write("power[%d] = %f\n"% \
                 (intervalID, timePowerList[1][timePowerList[0].index(iBound)]) )
       intervalID = intervalID + 1 
    powerFile.close; powerFile.flush()
