@@ -186,6 +186,7 @@ def setuplitt(config):
 
       # functions are call by reference need to deepcopy
       cntrlfile = copy.deepcopy(config) 
+      cntrlfile.set(     "compexec"   ,"profileid"       ,  namejob          )
       cntrlfile.set(     "field"      ,"k_0_field"       ,  k_0_field        )
       cntrlfile.set(     "field"      ,"w_0_field"       ,  w_0_field        )
       cntrlfile.set("thermal_conductivity" ,"k_0_healthy", "%f" % k_0        )
