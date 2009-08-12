@@ -73,6 +73,33 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
       qsubfile.close; qsubfile.flush() 
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
                          (workdir,jobid,namejob,namejob)
+   # ranger
+   elif(comphost.split(".")[0] == "login3"):
+      # write a qsub file
+      qsubfile=open("%s/%s/%s/%s.qsub" %(workdir,jobid,namejob,namejob) ,"w")
+      qsubfile.write("#!/bin/bash                           \n"           )
+      qsubfile.write("# Which account to be charged cpu time\n"           )
+      qsubfile.write("#$ -A UTMDACC-DIP                     \n"           )
+      qsubfile.write("#  combine stdout stderr              \n"           )
+      qsubfile.write("#$ -j y                               \n"           )
+      qsubfile.write("#  jobname                            \n"           )
+      qsubfile.write("#$ -N %s                              \n" % namejob )
+      qsubfile.write("#  inherit submission env             \n"           )
+      qsubfile.write("#$ -V                                 \n"           )
+      qsubfile.write("# The job is located in the current   \n"           )
+      qsubfile.write("# working directory.                  \n"           )
+      qsubfile.write("#$ -cwd                             \n\n"           )
+      qsubfile.write("#$ -o $JOB_NAME.o$JOB_ID            \n"             )
+      qsubfile.write("#$ -q development                   \n"             )
+      qsubfile.write("#$ -pe 16way %d                     \n" % numproc   )
+      qsubfile.write("#$ -l h_rt=02:00:00                 \n"             )
+      qsubfile.write("set -x                              \n"             )
+      qsubfile.write("ibrun ${WORK}/exec/%s_${PETSC_ARCH} %s %s \n" % \
+                                              (Executable,base_options,param_options))
+      # ensure entire file written before continuing
+      qsubfile.close; qsubfile.flush() 
+      execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
+                         (workdir,jobid,namejob,namejob)
    else: # default code execution
       execcode="cd %s/%s/%s ; mpirun -n %d $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (workdir,jobid,namejob,numproc,
                        Executable,base_options,param_options)
