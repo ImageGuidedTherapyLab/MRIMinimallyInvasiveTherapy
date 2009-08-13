@@ -57,6 +57,12 @@ def setuplitt(config):
    # method list
    listmethod  = config.get("compexec","method").split(Delimiter)
 
+   # probe domain
+   listprobedomain  = config.get("probe","domain").split(Delimiter)
+
+   # cooling
+   listprobeinit = config.get("initial_condition","probe_init").split(Delimiter)
+
    # laser params default from control file
    listmu_a   = map(float,config.get("optical","mu_a_healthy").split(Delimiter))
    listmu_s   = map(float,config.get("optical","mu_s_healthy").split(Delimiter))
@@ -107,18 +113,21 @@ def setuplitt(config):
    print "listk_1_ub"          , listk_1_ub
    print "listmeshfile"        , listmeshfile
    print "listpowerfile"       , listpowerfile
-   print "listpde"             , listpde
-   print "listqoi"             , listqoi
    print "listw_0_field"       , listw_0_field 
    print "listk_0_field"       , listk_0_field 
+   print "listqoi"             , listqoi
    print "listtime_window"     , listtime_window 
+   print "listprobedomain"     , listprobedomain
+   print "listprobeinit"       , listprobeinit
+   print "listpde"             , listpde
    #use list comprehension to build entire set of parameter list
    paramlist =[ (meshdata,powerdata,
                  k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
                  mu_s,mu_a,anfact,u_flux,newton_coeff, method, optimize_w_0,
                  optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
                  optimize_pow, optimize_mu_a, optimize_mu_s, 
-                 w_0_field, k_0_field,k_0_ub,k_1_ub,objective,time_window,pde)
+                 w_0_field, k_0_field,k_0_ub,k_1_ub,objective,
+                 time_window,probeDomain, probeInit, pde)
                     for meshdata         in listmeshfile   
                     for powerdata        in listpowerfile   
                     for k_0              in listk_0 
@@ -155,6 +164,8 @@ def setuplitt(config):
                     for k_1_ub           in listk_1_ub        
                     for objective        in listqoi        
                     for time_window      in listtime_window 
+                    for probeDomain      in listprobedomain 
+                    for probeInit        in listprobeinit 
                     for pde              in listpde       ]
 
    # don't run too many
@@ -166,11 +177,12 @@ def setuplitt(config):
    fcnvalfile=open("%s/printvalue.txt" % jobid ,"w")
 
    for (meshdata,powerdata,
-          k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
-          mu_s,mu_a,anfact,u_flux,newton_coeff, method, optimize_w_0,
-          optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
-          optimize_pow, optimize_mu_a, optimize_mu_s, w_0_field, 
-          k_0_field,k_0_ub,k_1_ub,objective,time_window,pde) in paramlist:
+         k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
+         mu_s,mu_a,anfact,u_flux,newton_coeff, method, optimize_w_0,
+         optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
+         optimize_pow, optimize_mu_a, optimize_mu_s, w_0_field, 
+         k_0_field,k_0_ub,k_1_ub,objective,time_window,
+                                 probeDomain,probeInit,pde) in paramlist:
       # create directory hierarchy to store files
       namejob= "%s%02d" % (jobid,id)
       # create directories
@@ -252,6 +264,8 @@ def setuplitt(config):
       cntrlfile.set("qoi_0","ideal_ntime_init" , "%d" % time_window[1] )
       cntrlfile.set("method",     "qoi"        ,       objective       )
       cntrlfile.set("method",     "pde"        ,          pde          )
+      cntrlfile.set("probe" ,     "domain"     ,        probeDomain    )
+      cntrlfile.set("initial_condition","probe_init",    probeInit     )
       joblist.append( [namejob, numproc, " ", cntrlfile, method]   )
    #close script
    fcnvalfile.close; fcnvalfile.flush()
