@@ -91,8 +91,8 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
       qsubfile.write("# working directory.                  \n"           )
       qsubfile.write("#$ -cwd                             \n\n"           )
       qsubfile.write("#$ -o $JOB_NAME.o$JOB_ID            \n"             )
-      qsubfile.write("#$ -q development                   \n"             )
-      qsubfile.write("#$ -pe 12way %d                     \n" % numproc   )
+      qsubfile.write("#$ -q normal                   \n"             )
+      qsubfile.write("#$ -pe 8way %d                      \n" % numproc   )
       qsubfile.write("#$ -l h_rt=02:00:00                 \n"             )
       qsubfile.write("set -x                              \n"             )
       qsubfile.write("ibrun ${WORK}/exec/%s_${PETSC_ARCH} %s %s \n" % \
