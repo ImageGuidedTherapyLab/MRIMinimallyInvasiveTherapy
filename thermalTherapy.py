@@ -62,13 +62,14 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
       # write a qsub file
       qsubfile=open("%s/%s/%s/%s.qsub" %(workdir,jobid,namejob,namejob) ,"w")
       qsubfile.write("#!/bin/bash              \n"           )
-      qsubfile.write("#$ -pe mpich %d          \n" % numproc )
+      qsubfile.write("#$ -pe 4way %d           \n" % numproc )
       qsubfile.write("#$ -N %s                 \n" % namejob )
       qsubfile.write("#$ -cwd                  \n"           )
       qsubfile.write("#$ -S /bin/bash          \n"           )
       qsubfile.write("#$ -v LD_LIBRARY_PATH,PATH,WORK,COMPILER\n")
       qsubfile.write("#$ -v MPI_VERSION,METHOD=%s \n" % method)
-      qsubfile.write("mpirun -np $NSLOTS -machinefile $TMP/machines $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (Executable,base_options, param_options))
+      qsubfile.write("mpirun -np $NSLOTS -machinefile $TMP/machines $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s\n" % (Executable,base_options, param_options))
+      qsubfile.write("pkill -9 dddas \n")
       # ensure entire file written before continuing
       qsubfile.close; qsubfile.flush() 
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
