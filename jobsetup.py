@@ -278,18 +278,21 @@ def setupkalman(iniFile):
 
    # get the thermal image info
    MRTI_nslice = iniFile.getint("mrti","nslice")
+   jobid       = iniFile.get( "compexec" , "jobid" ) 
    nzeroList  = map(int,iniFile.get("mrti","nzero").split(Delimiter))
    ntimeList  = map(int,iniFile.get("mrti","ntime").split(Delimiter))
+   ideal_dt   = iniFile.getfloat("timestep","ideal_dt")
 
    # get model parameters
-   x_0 = iniFile.getfloat("source_laser","x_0")
-   y_0 = iniFile.getfloat("source_laser","y_0")
-   z_0 = iniFile.getfloat("source_laser","z_0")
-   listk_0  = map(float,iniFile.get("thermal_conductivity","k_0").split(Delimiter))
-   listw_0  = map(float,iniFile.get("perfusion","w_0").split(Delimiter))
+   x_0 = iniFile.getfloat("probe","x_0")
+   y_0 = iniFile.getfloat("probe","y_0")
+   z_0 = iniFile.getfloat("probe","z_0")
+   listk_0  = map(float,iniFile.get("thermal_conductivity","k_0_healthy").split(Delimiter))
+   listw_0  = map(float,iniFile.get("perfusion","w_0_healthy").split(Delimiter))
    meascovList   = map(float,iniFile.get("kalman","meascov").split(Delimiter))
    statecovList  = map(float,iniFile.get("kalman","statecov").split(Delimiter))
-   
+   modelcovList  = map(float,iniFile.get("kalman","modelcov").split(Delimiter))
+
    # variations in ROI 
    # assumed of the form [ix,nx,iy,ny];[ix,nx,iy,ny];...
    roiList = map(utilities.ExtractListData,
@@ -311,8 +314,8 @@ def setupkalman(iniFile):
                   ]
    listcmdLine=[]
    for (nzero,ntime,meascov,statecov,roi,linalg,solver)  in cmdLineParams:
-      cmdLineOpt  = "-nslice %d -nzero %d -ntime %d" % \
-                         (MRTI_nslice,nzero,ntime)
+      cmdLineOpt  = "-nslice %d -nzero %d -ntime %d -deltat %f" % \
+                         (MRTI_nslice,nzero,ntime,ideal_dt)
       cmdLineOpt  = cmdLineOpt  + \
                     " -X_0 %f -Y_0 %f -Z_0 %f -meascov %f -statecov %f" % \
                           (x_0,y_0,z_0,meascov,statecov)
@@ -333,11 +336,18 @@ def setupkalman(iniFile):
                     for method           in listmethod 
               ]
    id = 0 
+   joblist=[]
    for (numproc,cmdLine_options,method) in paramlist:
       namejob= "%s%02d" % (jobid,id)
       # create directories
       utilities.create_directories(jobid,namejob)
       joblist.append( [namejob, numproc, cmdLine_options, iniFile, method]   )
+      # setup power data
+      timePowerList = map(utilities.ExtractListData,  
+                          iniFile.get("compexec","powerdata").split("@"))
+      MRTI_ntime  = iniFile.getint( "mrti"  ,"ntime"     )
+      utilities.write_power_file(MRTI_ntime ,timePowerList,
+                                   "%s/%s/files/power.ini" % (jobid,namejob)) 
       id = id + 1 
 
    # don't run too many

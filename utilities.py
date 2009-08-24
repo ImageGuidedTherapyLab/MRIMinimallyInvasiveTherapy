@@ -27,6 +27,7 @@ def control_defaults(controlfile):
    cntrldflt.add_section("field")
    cntrldflt.add_section("qoi_0")
    cntrldflt.add_section("visualase")
+   cntrldflt.add_section("kalman")
    cntrldflt.set("field"       ,  "w_0_field"      ,      "False"      )
    cntrldflt.set("field"       ,  "k_0_field"      ,      "False"      )
    cntrldflt.set("visualase"   ,"visualase_file"   ,"mlat.dat"         )
@@ -103,6 +104,9 @@ def control_defaults(controlfile):
    cntrldflt.set("registration", "subsamplefactorX",      "2"          ) 
    cntrldflt.set("registration", "subsamplefactorY",      "2"          ) 
    cntrldflt.set("registration", "subsamplefactorZ",      "1"          ) 
+   cntrldflt.set("kalman", "meascov" ,      "2.0"          ) 
+   cntrldflt.set("kalman", "statecov",      "1.5"          ) 
+   cntrldflt.set("kalman", "modelcov",      "6.25"         ) 
 
    #set some defaults based on an initial read of the control file
    #scratchini = ConfigParser.ConfigParser()
