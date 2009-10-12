@@ -107,6 +107,8 @@ def control_defaults(controlfile):
    cntrldflt.set("kalman", "meascov" ,      "2.0"          ) 
    cntrldflt.set("kalman", "statecov",      "1.5"          ) 
    cntrldflt.set("kalman", "modelcov",      "6.25"         ) 
+   cntrldflt.set("kalman", "magix"   ,        "0"          ) 
+   cntrldflt.set("kalman", "magiy"   ,        "0"          ) 
 
    #set some defaults based on an initial read of the control file
    #scratchini = ConfigParser.ConfigParser()

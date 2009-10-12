@@ -30,9 +30,13 @@ if(Executable == "image"):
   ExamPath = iniFile.get(   "mrti" ,"exampath")
   DirId    = iniFile.getint("mrti" ,"dirid")
   OutputDir= "mrivis"
-  
+  #noise estimate
+  magIx    = iniFile.getint("kalman" ,"magix")
+  magIy    = iniFile.getint("kalman" ,"magiy")
+
   # constant runtime options
-  base_options = " %s %d %s %s " % (ExamPath,DirId,OutputDir,runtime_options) 
+  base_options = " %s %d %s %s -magIx %d -magIy %d" % \
+                  (ExamPath,DirId,OutputDir,runtime_options,magIx,magIy) 
   
   #build list of jobs to run
   JOBS=jobsetup.setupkalman(iniFile) 
