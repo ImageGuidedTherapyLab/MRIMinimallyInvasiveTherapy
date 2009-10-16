@@ -277,11 +277,9 @@ def setuplitt(config):
 def setupkalman(iniFile):
 
    # get the thermal image info
-   MRTI_nslice = iniFile.getint("mrti","nslice")
    jobid       = iniFile.get( "compexec" , "jobid" ) 
    nzeroList  = map(int,iniFile.get("mrti","nzero").split(Delimiter))
    ntimeList  = map(int,iniFile.get("mrti","ntime").split(Delimiter))
-   ideal_dt   = iniFile.getfloat("timestep","ideal_dt")
 
    # get model parameters
    x_0 = iniFile.getfloat("probe","x_0")
@@ -314,8 +312,7 @@ def setupkalman(iniFile):
                   ]
    listcmdLine=[]
    for (nzero,ntime,meascov,statecov,roi,linalg,solver)  in cmdLineParams:
-      cmdLineOpt  = "-nslice %d -nzero %d -ntime %d -deltat %f" % \
-                         (MRTI_nslice,nzero,ntime,ideal_dt)
+      cmdLineOpt  = "-nzero %d -ntime %d " %  (nzero,ntime)
       cmdLineOpt  = cmdLineOpt  + \
                     " -X_0 %f -Y_0 %f -Z_0 %f -meascov %f -statecov %f" % \
                           (x_0,y_0,z_0,meascov,statecov)

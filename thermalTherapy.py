@@ -30,13 +30,18 @@ if(Executable == "image"):
   ExamPath = iniFile.get(   "mrti" ,"exampath")
   DirId    = iniFile.getint("mrti" ,"dirid")
   OutputDir= "mrivis"
+  #get dicom Dictionary
+  try:
+    Dictionary= iniFile.get("mrti" ,"dictionary")
+  except ConfigParser.NoOptionError:
+    raise IOError("\n\n    No Dicom Dictionary FOUND! " )
   #noise estimate
   magIx    = iniFile.getint("kalman" ,"magix")
   magIy    = iniFile.getint("kalman" ,"magiy")
 
   # constant runtime options
-  base_options = " %s %d %s %s -magIx %d -magIy %d" % \
-                  (ExamPath,DirId,OutputDir,runtime_options,magIx,magIy) 
+  base_options = " %s %d %s %s %s -magIx %d -magIy %d" % \
+               (ExamPath,DirId,Dictionary,OutputDir,runtime_options,magIx,magIy)
   
   #build list of jobs to run
   JOBS=jobsetup.setupkalman(iniFile) 
