@@ -282,6 +282,7 @@ def setupkalman(iniFile):
    ntimeList  = map(int,iniFile.get("mrti","ntime").split(Delimiter))
 
    # get model parameters
+   bodyTemp = iniFile.getfloat("initial_condition","u_init")
    x_0 = iniFile.getfloat("probe","x_0")
    y_0 = iniFile.getfloat("probe","y_0")
    z_0 = iniFile.getfloat("probe","z_0")
@@ -314,11 +315,11 @@ def setupkalman(iniFile):
    for (nzero,ntime,meascov,statecov,roi,linalg,solver)  in cmdLineParams:
       cmdLineOpt  = "-nzero %d -ntime %d " %  (nzero,ntime)
       cmdLineOpt  = cmdLineOpt  + \
-                    " -X_0 %f -Y_0 %f -Z_0 %f -meascov %f -statecov %f" % \
+                    " -X_0 %f -Y_0 %f -Z_0 %f -meascov %f -statecov %f " % \
                           (x_0,y_0,z_0,meascov,statecov)
       cmdLineOpt  = cmdLineOpt  + \
-                    " -ix %d -nx %d -iy %d -ny %d" % \
-                           (roi[0],roi[1],roi[2],roi[3])
+                    " -ix %d -nx %d -iy %d -ny %d -bodytemp %f" % \
+                           (roi[0],roi[1],roi[2],roi[3],bodyTemp)
       cmdLineOpt  = cmdLineOpt  + \
                     " -method %d -solver %s" % (linalg,solver)
       listcmdLine.append( cmdLineOpt  )
