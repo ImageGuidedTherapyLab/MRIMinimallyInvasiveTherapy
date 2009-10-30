@@ -37,7 +37,6 @@ def control_defaults(controlfile):
    cntrldflt.set("compexec"    ,    "method"       ,      "opt"        )
    cntrldflt.set("compexec"    ,     "comphost"    , socket.gethostname().split(".")[0]) 
    cntrldflt.set("mrti"        ,"img_sizefile"     ,"mrtiimg.size"     )    
-   cntrldflt.set("mrti"        ,"nzero"            ,        "0"        )    
    cntrldflt.set("avs"         ,"mrtivis_sizefile" ,"mrtivis.size"     )    
    cntrldflt.set("avs"         ,"femvis_sizefile"  ,"ucdvis.size"      )     
    cntrldflt.set("output"      ,"compwritemri"     ,"mrivis/"          )     
@@ -104,11 +103,9 @@ def control_defaults(controlfile):
    cntrldflt.set("registration", "subsamplefactorX",      "2"          ) 
    cntrldflt.set("registration", "subsamplefactorY",      "2"          ) 
    cntrldflt.set("registration", "subsamplefactorZ",      "1"          ) 
-   cntrldflt.set("kalman", "meascov" ,      "2.0"          ) 
-   cntrldflt.set("kalman", "statecov",      "1.5"          ) 
-   cntrldflt.set("kalman", "modelcov",      "6.25"         ) 
    cntrldflt.set("kalman", "magix"   ,        "0"          ) 
    cntrldflt.set("kalman", "magiy"   ,        "0"          ) 
+
 
    #set some defaults based on an initial read of the control file
    #scratchini = ConfigParser.ConfigParser()

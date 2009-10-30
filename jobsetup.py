@@ -276,9 +276,16 @@ def setuplitt(config):
 
 def setupkalman(iniFile):
 
-   # get the thermal image info
+   # get jod identification
    jobid       = iniFile.get( "compexec" , "jobid" ) 
-   nzeroList  = map(int,iniFile.get("mrti","nzero").split(Delimiter))
+
+   # get a possible list of nzero to iterate on
+   try: # never use the first image of the raw dicom data (RJS)
+     nzeroList  = map(int,iniFile.get("mrti","nzero").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     nzeroList  = [None]
+
+   # get a possible list of ntime to iterate on
    ntimeList  = map(int,iniFile.get("mrti","ntime").split(Delimiter))
 
    # get model parameters
@@ -288,18 +295,41 @@ def setupkalman(iniFile):
    z_0 = iniFile.getfloat("probe","z_0")
    listk_0  = map(float,iniFile.get("thermal_conductivity","k_0_healthy").split(Delimiter))
    listw_0  = map(float,iniFile.get("perfusion","w_0_healthy").split(Delimiter))
-   meascovList   = map(float,iniFile.get("kalman","meascov").split(Delimiter))
-   statecovList  = map(float,iniFile.get("kalman","statecov").split(Delimiter))
-   modelcovList  = map(float,iniFile.get("kalman","modelcov").split(Delimiter))
+   
+   # measurement covariance
+   try: 
+     meascovList   = map(float,iniFile.get("kalman","meascov").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     meascovList   = [None]
 
-   # variations in ROI 
-   # assumed of the form [ix,nx,iy,ny];[ix,nx,iy,ny];...
-   roiList = map(utilities.ExtractListData,
-                   iniFile.get("kalman","roi").split(Delimiter))
+   # state covariance
+   try: 
+     statecovList = map(float,iniFile.get("kalman","statecov").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     statecovList = [None]
+
+   # model covariance
+   try: 
+     modelcovList = map(float,iniFile.get("kalman","modelcov").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     modelcovList = [None]
+
+   # variations in ROI assumed of the form [ix,nx,iy,ny];[ix,nx,iy,ny];...
+   try:
+     roiList = map(utilities.ExtractListData,
+                     iniFile.get("kalman","roi").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     roiList = [None]
 
    # variations in solution methods
-   linalgList = map(int,iniFile.get("kalman","method").split(Delimiter))
-   solverList = iniFile.get("compexec","solver").split(Delimiter)
+   try:
+     linalgList = map(int,iniFile.get("kalman","method").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     linalgList = [None]
+   try:
+     solverList = iniFile.get("compexec","solver").split(Delimiter)
+   except ConfigParser.NoOptionError: 
+     solverList = [None]
    
    # create list of command line params
    cmdLineParams =[ (nzero,ntime,meascov,statecov,roi,linalg,solver) 
@@ -313,15 +343,16 @@ def setupkalman(iniFile):
                   ]
    listcmdLine=[]
    for (nzero,ntime,meascov,statecov,roi,linalg,solver)  in cmdLineParams:
-      cmdLineOpt  = "-nzero %d -ntime %d " %  (nzero,ntime)
-      cmdLineOpt  = cmdLineOpt  + \
-                    " -X_0 %f -Y_0 %f -Z_0 %f -meascov %f -statecov %f " % \
-                          (x_0,y_0,z_0,meascov,statecov)
-      cmdLineOpt  = cmdLineOpt  + \
-                    " -ix %d -nx %d -iy %d -ny %d -bodytemp %f" % \
-                           (roi[0],roi[1],roi[2],roi[3],bodyTemp)
-      cmdLineOpt  = cmdLineOpt  + \
-                    " -method %d -solver %s" % (linalg,solver)
+      cmdLineOpt  = "-ntime %d -X_0 %f -Y_0 %f -Z_0 %f " %  (ntime,x_0,y_0,z_0)
+      cmdLineOpt= cmdLineOpt  + "-bodytemp %f " % bodyTemp
+      if (nzero    != None): cmdLineOpt= cmdLineOpt + "-nzero %d "    % nzero
+      if (meascov  != None): cmdLineOpt= cmdLineOpt + "-meascov %f  " % meascov
+      if (statecov != None): cmdLineOpt= cmdLineOpt + "-statecov %f " % statecov
+      if (linalg   != None): cmdLineOpt= cmdLineOpt + "-method %d "   % linalg
+      if (solver   != None): cmdLineOpt= cmdLineOpt + "-solver %s "   % solver
+      if (roi      != None): 
+         cmdLineOpt  = cmdLineOpt  + " -ix %d -nx %d -iy %d -ny %d " % \
+                                       (roi[0],roi[1],roi[2],roi[3])
       listcmdLine.append( cmdLineOpt  )
 
    # variations in execution options
