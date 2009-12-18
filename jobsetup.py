@@ -11,6 +11,14 @@ import ConfigParser
 
 Delimiter=";"
 
+# return a list of None if parameter not found
+def getParameterList(configFile,section,option):
+   try: 
+     return configFile.get(section,option).split(Delimiter)
+   except ConfigParser.NoOptionError: 
+     return [None]
+
+
 def setuplitt(config):
    print """param_study:
      default setup, may vary the intial guess of parameters 
@@ -36,20 +44,32 @@ def setuplitt(config):
    listz_0  = map(float,config.get("probe","z_0").split(Delimiter))
    listu_flux     = map(float,config.get("bc","u_flux").split(Delimiter)) 
    listnewton_coeff = map(float,config.get("bc","newton_coeff").split(Delimiter)) 
-   listoptimize_w_0 = config.get("qoi_0","optimize_w_0").split(Delimiter)
-   listoptimize_k_0 = config.get("qoi_0","optimize_k_0").split(Delimiter)
-   listoptimize_k_1 = config.get("qoi_0","optimize_k_1").split(Delimiter)
-   listoptimize_k_2 = config.get("qoi_0","optimize_k_2").split(Delimiter)
-   listoptimize_k_3 = config.get("qoi_0","optimize_k_3").split(Delimiter)
-   listoptimize_pow = config.get("qoi_0","optimize_pow").split(Delimiter)
-   listoptimize_mu_a= config.get("qoi_0","optimize_mu_a").split(Delimiter)
-   listoptimize_mu_s= config.get("qoi_0","optimize_mu_s").split(Delimiter)
-   listk_1_ub = map(float,config.get("thermal_conductivity","k_1_ub").split(Delimiter))
-   listk_0_ub = map(float,config.get("thermal_conductivity","k_0_ub").split(Delimiter))
+   
+   listoptimize_w_0 = getParameterList(config,"qoi_0","optimize_w_0")
+   listoptimize_k_0 = getParameterList(config,"qoi_0","optimize_k_0")
+   listoptimize_k_1 = getParameterList(config,"qoi_0","optimize_k_1")
+   listoptimize_k_2 = getParameterList(config,"qoi_0","optimize_k_2")
+   listoptimize_k_3 = getParameterList(config,"qoi_0","optimize_k_3")
+   listoptimize_pow = getParameterList(config,"qoi_0","optimize_pow")
+   listoptimize_mu_a= getParameterList(config,"qoi_0","optimize_mu_a")
+   listoptimize_mu_s= getParameterList(config,"qoi_0","optimize_mu_s")
+   listw_0_field    = getParameterList(config,"field","w_0_field")
+   listk_0_field    = getParameterList(config,"field","k_0_field")
+
+   # vary parameter upperbound
+   try:
+     listk_1_ub = map(float,config.get("thermal_conductivity","k_1_ub").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     listk_1_ub = [None]
+
+   # vary parameter upperbound
+   try:
+     listk_0_ub = map(float,config.get("thermal_conductivity","k_0_ub").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     listk_0_ub = [None]
+
    listpde = config.get("method","pde").split(Delimiter)
    listqoi = config.get("method","qoi").split(Delimiter)
-   listw_0_field = config.get("field","w_0_field").split(Delimiter)
-   listk_0_field = config.get("field","k_0_field").split(Delimiter)
    #assumed of the form time_window_list "[18,234];[13,58];[12,321];[0,1]"
    time_window_list= config.get("qoi_0","init_time_window")
    listtime_window = map(utilities.ExtractListData,time_window_list.split(Delimiter))
@@ -199,14 +219,16 @@ def setuplitt(config):
       # functions are call by reference need to deepcopy
       cntrlfile = copy.deepcopy(config) 
       cntrlfile.set(     "compexec"   ,"profileid"       ,  namejob          )
-      cntrlfile.set(     "field"      ,"k_0_field"       ,  k_0_field        )
-      cntrlfile.set(     "field"      ,"w_0_field"       ,  w_0_field        )
+      if (k_0_field != None): 
+        cntrlfile.set(     "field"      ,"k_0_field"       ,  k_0_field        )
+      if (w_0_field != None): 
+        cntrlfile.set(     "field"      ,"w_0_field"       ,  w_0_field        )
       cntrlfile.set("thermal_conductivity" ,"k_0_healthy", "%f" % k_0        )
-      cntrlfile.set("thermal_conductivity" ,"k_0_ub"     , "%f" % k_0_ub     )
+      if (k_0_ub != None): 
+        cntrlfile.set("thermal_conductivity" ,"k_0_ub"     , "%f" % k_0_ub     )
       cntrlfile.set("thermal_conductivity" ,"k_1"        , "%f" % k_1        )
-      cntrlfile.set("thermal_conductivity" ,"k_1_ub"     , "%f" % k_1_ub     )
-      cntrlfile.set("thermal_conductivity" ,"k_2"        , "%f" % k_2        )
-      cntrlfile.set("thermal_conductivity" ,"k_3"        , "%f" % k_3        )
+      if (k_1_ub != None): 
+        cntrlfile.set("thermal_conductivity" ,"k_1_ub"     , "%f" % k_1_ub     )
       cntrlfile.set("perfusion"     ,"w_0_healthy"       , "%f" % w_0        )
       cntrlfile.set("perfusion"     ,"w_n"             , "%f" % w_n        )
       cntrlfile.set("perfusion"     ,"w_i"             , "%f" % w_i        )
@@ -252,14 +274,22 @@ def setuplitt(config):
         utilities.write_power_file(Maxtime,timePowerList,
                                    "%s/%s/files/power.ini" % (jobid,namejob)) 
         cntrlfile.remove_option("compexec","powerdata") # clean up
-      cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )
-      cntrlfile.set("qoi_0","optimize_k_0"     ,     optimize_k_0      )
-      cntrlfile.set("qoi_0","optimize_k_1"     ,     optimize_k_1      )
-      cntrlfile.set("qoi_0","optimize_k_2"     ,     optimize_k_2      )
-      cntrlfile.set("qoi_0","optimize_k_3"     ,     optimize_k_3      )
-      cntrlfile.set("qoi_0","optimize_pow"     ,     optimize_pow      )
-      cntrlfile.set("qoi_0","optimize_mu_a"    ,     optimize_mu_a     )
-      cntrlfile.set("qoi_0","optimize_mu_s"    ,     optimize_mu_s     )
+      if (optimize_w_0 != None):
+        cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )
+      if (optimize_k_0 != None):
+        cntrlfile.set("qoi_0","optimize_k_0"     ,     optimize_k_0      )
+      if (optimize_k_1 != None):
+        cntrlfile.set("qoi_0","optimize_k_1"     ,     optimize_k_1      )
+      if (optimize_k_2 != None):
+        cntrlfile.set("qoi_0","optimize_k_2"     ,     optimize_k_2      )
+      if (optimize_k_3 != None):
+        cntrlfile.set("qoi_0","optimize_k_3"     ,     optimize_k_3      )
+      if (optimize_pow != None):
+        cntrlfile.set("qoi_0","optimize_pow"     ,     optimize_pow      )
+      if (optimize_mu_a != None):
+        cntrlfile.set("qoi_0","optimize_mu_a"    ,     optimize_mu_a     )
+      if (optimize_mu_s != None):
+        cntrlfile.set("qoi_0","optimize_mu_s"    ,     optimize_mu_s     )
       cntrlfile.set("qoi_0","ideal_nzero_init" , "%d" % time_window[0] )
       cntrlfile.set("qoi_0","ideal_ntime_init" , "%d" % time_window[1] )
       cntrlfile.set("method",     "qoi"        ,       objective       )
