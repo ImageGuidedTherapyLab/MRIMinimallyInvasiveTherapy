@@ -110,6 +110,11 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
       qsubfile.close; qsubfile.flush() 
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
                          (workdir,jobid,namejob,namejob)
+   elif(comphost.split(".")[0] == "lslogin1"):
+      bsubbase = cntrlfile.get(   "compexec","bsub")
+      execcode="cd %s/%s/%s ; %s -J %s -n %d -o out.o -e err.o ibrun /work/utexas/iv/fuentes/exec/dddas_em64t-cxx %s " %  \
+                         (workdir,jobid,namejob,bsubbase,namejob,
+                                        numproc,runtime_options)
    else: # default code execution
       execcode="cd %s/%s/%s ; mpirun -n %d $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (workdir,jobid,namejob,numproc,
                        Executable,base_options,param_options)
