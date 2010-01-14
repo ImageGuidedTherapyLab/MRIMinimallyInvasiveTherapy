@@ -68,6 +68,18 @@ def setuplitt(config):
    except ConfigParser.NoOptionError: 
      listk_0_ub = [None]
 
+   # vary parameter upperbound
+   try:
+     listmu_a_ub = map(float,config.get("optical","mu_a_ub").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     listmu_a_ub = [None]
+
+   # vary parameter upperbound
+   try:
+     listmu_a_tumor_ub = map(float,config.get("optical","mu_a_tumor_ub").split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     listmu_a_tumor_ub = [None]
+
    listpde = config.get("method","pde").split(Delimiter)
    listqoi = config.get("method","qoi").split(Delimiter)
    #assumed of the form time_window_list "[18,234];[13,58];[12,321];[0,1]"
@@ -101,53 +113,55 @@ def setuplitt(config):
    listpowerfile=config.get("compexec","powerdata").split(Delimiter)  
 
    # echo params
-   print "listk_0       "      , listk_0       
-   print "listk_1       "      , listk_1       
-   print "listk_2       "      , listk_2       
-   print "listk_3       "      , listk_3       
-   print "listw_0       "      , listw_0       
-   print "listw_n       "      , listw_n       
-   print "listw_i       "      , listw_i       
-   print "listw_d       "      , listw_d       
-   print "listw_2       "      , listw_2       
-   print "listw_ni      "      , listw_ni      
-   print "listw_id      "      , listw_id      
-   print "listx_0       "      , listx_0       
-   print "listy_0       "      , listy_0       
-   print "listz_0       "      , listz_0       
-   print "listmu_a      "      , listmu_a      
-   print "listmu_s      "      , listmu_s      
-   print "listanfact    "      , listanfact    
-   print "listu_flux    "      , listu_flux    
-   print "listnewton_coeff"    , listnewton_coeff
-   print "listmethod"          , listmethod
-   print "listoptimize_w_0"    , listoptimize_w_0
-   print "listoptimize_k_0"    , listoptimize_k_0
-   print "listoptimize_k_1"    , listoptimize_k_1
-   print "listoptimize_k_2"    , listoptimize_k_2
-   print "listoptimize_k_3"    , listoptimize_k_3
-   print "listoptimize_pow"    , listoptimize_pow
+   print "listk_0          "   , listk_0       
+   print "listk_1          "   , listk_1       
+   print "listk_2          "   , listk_2       
+   print "listk_3          "   , listk_3       
+   print "listw_0          "   , listw_0       
+   print "listw_n          "   , listw_n       
+   print "listw_i          "   , listw_i       
+   print "listw_d          "   , listw_d       
+   print "listw_2          "   , listw_2       
+   print "listw_ni         "   , listw_ni      
+   print "listw_id         "   , listw_id      
+   print "listx_0          "   , listx_0       
+   print "listy_0          "   , listy_0       
+   print "listz_0          "   , listz_0       
+   print "listmu_a         "   , listmu_a      
+   print "listmu_a_ub      "   , listmu_a_ub
+   print "listmu_a_tumor_ub"   , listmu_a_tumor_ub
+   print "listmu_s         "   , listmu_s      
+   print "listanfact       "   , listanfact    
+   print "listu_flux       "   , listu_flux    
+   print "listnewton_coeff "   , listnewton_coeff
+   print "listmethod       "   , listmethod
+   print "listoptimize_w_0 "   , listoptimize_w_0
+   print "listoptimize_k_0 "   , listoptimize_k_0
+   print "listoptimize_k_1 "   , listoptimize_k_1
+   print "listoptimize_k_2 "   , listoptimize_k_2
+   print "listoptimize_k_3 "   , listoptimize_k_3
+   print "listoptimize_pow "   , listoptimize_pow
    print "listoptimize_mu_a"   , listoptimize_mu_a
    print "listoptimize_mu_s"   , listoptimize_mu_s
-   print "listk_0_ub"          , listk_0_ub
-   print "listk_1_ub"          , listk_1_ub
-   print "listmeshfile"        , listmeshfile
-   print "listpowerfile"       , listpowerfile
-   print "listw_0_field"       , listw_0_field 
-   print "listk_0_field"       , listk_0_field 
-   print "listqoi"             , listqoi
-   print "listtime_window"     , listtime_window 
-   print "listprobedomain"     , listprobedomain
-   print "listprobeinit"       , listprobeinit
-   print "listpde"             , listpde
+   print "listk_0_ub       "   , listk_0_ub
+   print "listk_1_ub       "   , listk_1_ub
+   print "listmeshfile     "   , listmeshfile
+   print "listpowerfile    "   , listpowerfile
+   print "listw_0_field    "   , listw_0_field 
+   print "listk_0_field    "   , listk_0_field 
+   print "listqoi          "   , listqoi
+   print "listtime_window  "   , listtime_window 
+   print "listprobedomain  "   , listprobedomain
+   print "listprobeinit    "   , listprobeinit
+   print "listpde          "   , listpde
    #use list comprehension to build entire set of parameter list
    paramlist =[ (meshdata,powerdata,
                  k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
                  mu_s,mu_a,anfact,u_flux,newton_coeff, method, optimize_w_0,
                  optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
                  optimize_pow, optimize_mu_a, optimize_mu_s, 
-                 w_0_field, k_0_field,k_0_ub,k_1_ub,objective,
-                 time_window,probeDomain, probeInit, pde)
+                 w_0_field, k_0_field,k_0_ub,k_1_ub, mu_a_ub, mu_a_tumor_ub,
+                 objective, time_window,probeDomain, probeInit, pde)
                     for meshdata         in listmeshfile   
                     for powerdata        in listpowerfile   
                     for k_0              in listk_0 
@@ -182,6 +196,8 @@ def setuplitt(config):
                     for k_0_field        in listk_0_field  
                     for k_0_ub           in listk_0_ub        
                     for k_1_ub           in listk_1_ub        
+                    for mu_a_ub          in listmu_a_ub      
+                    for mu_a_tumor_ub    in listmu_a_tumor_ub
                     for objective        in listqoi        
                     for time_window      in listtime_window 
                     for probeDomain      in listprobedomain 
@@ -201,8 +217,8 @@ def setuplitt(config):
          mu_s,mu_a,anfact,u_flux,newton_coeff, method, optimize_w_0,
          optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
          optimize_pow, optimize_mu_a, optimize_mu_s, w_0_field, 
-         k_0_field,k_0_ub,k_1_ub,objective,time_window,
-                                 probeDomain,probeInit,pde) in paramlist:
+         k_0_field,k_0_ub,k_1_ub,mu_a_ub, mu_a_tumor_ub,
+          objective,time_window,probeDomain,probeInit,pde) in paramlist:
       # create directory hierarchy to store files
       namejob= "%s%02d" % (jobid,id)
       # create directories
@@ -223,12 +239,16 @@ def setuplitt(config):
         cntrlfile.set(     "field"      ,"k_0_field"       ,  k_0_field        )
       if (w_0_field != None): 
         cntrlfile.set(     "field"      ,"w_0_field"       ,  w_0_field        )
-      cntrlfile.set("thermal_conductivity" ,"k_0_healthy", "%f" % k_0        )
       if (k_0_ub != None): 
         cntrlfile.set("thermal_conductivity" ,"k_0_ub"     , "%f" % k_0_ub     )
-      cntrlfile.set("thermal_conductivity" ,"k_1"        , "%f" % k_1        )
       if (k_1_ub != None): 
         cntrlfile.set("thermal_conductivity" ,"k_1_ub"     , "%f" % k_1_ub     )
+      if (mu_a_ub       != None): 
+        cntrlfile.set("optical" ,"mu_a_ub"             , "%f" % mu_a_ub      )
+      if (mu_a_tumor_ub != None): 
+        cntrlfile.set("optical" ,"mu_a_tumor_ub"       , "%f" % mu_a_tumor_ub)
+      cntrlfile.set("thermal_conductivity" ,"k_0_healthy", "%f" % k_0        )
+      cntrlfile.set("thermal_conductivity" ,"k_1"        , "%f" % k_1        )
       cntrlfile.set("perfusion"     ,"w_0_healthy"       , "%f" % w_0        )
       cntrlfile.set("perfusion"     ,"w_n"             , "%f" % w_n        )
       cntrlfile.set("perfusion"     ,"w_i"             , "%f" % w_i        )
