@@ -28,10 +28,12 @@ def setuplitt(config):
    workdir = config.get( "compexec" , "workdir" ) 
    jobid   = config.get( "compexec" , "jobid" ) 
    #default lists
+   listoptimize_k_0 = getParameterList(config,"thermal_conductivity","k_0_optimize")
    listk_0  = map(float,config.get("thermal_conductivity","k_0_healthy").split(Delimiter))
    listk_1  = map(float,config.get("thermal_conductivity","k_1").split(Delimiter))
    listk_2  = map(float,config.get("thermal_conductivity","k_2").split(Delimiter))
    listk_3  = map(float,config.get("thermal_conductivity","k_3").split(Delimiter))
+   listoptimize_w_0 = getParameterList(config,"perfusion","w_0_optimize")
    listw_0  = map(float,config.get("perfusion","w_0_healthy").split(Delimiter))
    listw_n  = map(float,config.get("perfusion","w_n").split(Delimiter))
    listw_i  = map(float,config.get("perfusion","w_i").split(Delimiter))
@@ -45,14 +47,12 @@ def setuplitt(config):
    listu_flux     = map(float,config.get("bc","u_flux").split(Delimiter)) 
    listnewton_coeff = map(float,config.get("bc","newton_coeff").split(Delimiter)) 
    
-   listoptimize_w_0 = getParameterList(config,"qoi_0","optimize_w_0")
-   listoptimize_k_0 = getParameterList(config,"qoi_0","optimize_k_0")
    listoptimize_k_1 = getParameterList(config,"qoi_0","optimize_k_1")
    listoptimize_k_2 = getParameterList(config,"qoi_0","optimize_k_2")
    listoptimize_k_3 = getParameterList(config,"qoi_0","optimize_k_3")
    listoptimize_pow = getParameterList(config,"qoi_0","optimize_pow")
-   listoptimize_mu_a= getParameterList(config,"qoi_0","optimize_mu_a")
-   listoptimize_mu_s= getParameterList(config,"qoi_0","optimize_mu_s")
+   listoptimize_mu_a= getParameterList(config,"optical","mu_a_optimize")
+   listoptimize_mu_s= getParameterList(config,"optical","mu_s_optimize")
    listw_0_field    = getParameterList(config,"field","w_0_field")
    listk_0_field    = getParameterList(config,"field","k_0_field")
 
@@ -295,21 +295,21 @@ def setuplitt(config):
                                    "%s/%s/files/power.ini" % (jobid,namejob)) 
         cntrlfile.remove_option("compexec","powerdata") # clean up
       if (optimize_w_0 != None):
-        cntrlfile.set("qoi_0","optimize_w_0"     ,     optimize_w_0      )
+        cntrlfile.set("perfusion","w_0_optimize"            , optimize_w_0   )
       if (optimize_k_0 != None):
-        cntrlfile.set("qoi_0","optimize_k_0"     ,     optimize_k_0      )
+        cntrlfile.set("thermal_conductivity","k_0_optimize" , optimize_k_0   )
       if (optimize_k_1 != None):
-        cntrlfile.set("qoi_0","optimize_k_1"     ,     optimize_k_1      )
+        cntrlfile.set("qoi_0","k_1_optimize"     ,     optimize_k_1      )
       if (optimize_k_2 != None):
-        cntrlfile.set("qoi_0","optimize_k_2"     ,     optimize_k_2      )
+        cntrlfile.set("qoi_0","k_2_optimize"     ,     optimize_k_2      )
       if (optimize_k_3 != None):
-        cntrlfile.set("qoi_0","optimize_k_3"     ,     optimize_k_3      )
+        cntrlfile.set("qoi_0","k_3_optimize"     ,     optimize_k_3      )
       if (optimize_pow != None):
-        cntrlfile.set("qoi_0","optimize_pow"     ,     optimize_pow      )
+        cntrlfile.set("qoi_0","pow_optimize"     ,     optimize_pow      )
       if (optimize_mu_a != None):
-        cntrlfile.set("qoi_0","optimize_mu_a"    ,     optimize_mu_a     )
+        cntrlfile.set("optical","mu_a_optimize"  ,     optimize_mu_a     )
       if (optimize_mu_s != None):
-        cntrlfile.set("qoi_0","optimize_mu_s"    ,     optimize_mu_s     )
+        cntrlfile.set("optical","mu_s_optimize"  ,     optimize_mu_s     )
       cntrlfile.set("qoi_0","ideal_nzero_init" , "%d" % time_window[0] )
       cntrlfile.set("qoi_0","ideal_ntime_init" , "%d" % time_window[1] )
       cntrlfile.set("method",     "qoi"        ,       objective       )
