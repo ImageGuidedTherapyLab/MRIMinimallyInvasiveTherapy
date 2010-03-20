@@ -71,7 +71,7 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
       # write a qsub file
       qsubfile=open("%s/%s/%s/%s.qsub" %(workdir,jobid,namejob,namejob) ,"w")
       qsubfile.write("#!/bin/bash              \n"           )
-      qsubfile.write("#$ -pe 4way %d           \n" % numproc )
+      qsubfile.write("#$ -pe mpich %d           \n" % numproc )
       qsubfile.write("#$ -N %s                 \n" % namejob )
       qsubfile.write("#$ -cwd                  \n"           )
       qsubfile.write("#$ -S /bin/bash          \n"           )
