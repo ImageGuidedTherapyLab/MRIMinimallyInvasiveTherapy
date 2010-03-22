@@ -86,6 +86,13 @@ def setuplitt(config):
    time_window_list= config.get("qoi_0","init_time_window")
    listtime_window = map(utilities.ExtractListData,time_window_list.split(Delimiter))
 
+   #assumed of the form hessian_window = "[0,5];[6,10];[11,25];..."
+   try:
+     hessian_window= config.get("compexec","hessian_window")
+     listhessian_window = map(utilities.ExtractListData,hessian_window.split(Delimiter))
+   except ConfigParser.NoOptionError: 
+     listhessian_window = [None]
+
    # method list
    listmethod  = config.get("compexec","method").split(Delimiter)
 
@@ -151,6 +158,7 @@ def setuplitt(config):
    print "listk_0_field    "   , listk_0_field 
    print "listqoi          "   , listqoi
    print "listtime_window  "   , listtime_window 
+   print "listhessian_window"  , listhessian_window 
    print "listprobedomain  "   , listprobedomain
    print "listprobeinit    "   , listprobeinit
    print "listpde          "   , listpde
@@ -161,7 +169,7 @@ def setuplitt(config):
                  optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
                  optimize_pow, optimize_mu_a, optimize_mu_s, 
                  w_0_field, k_0_field,k_0_ub,k_1_ub, mu_a_ub, mu_a_tumor_ub,
-                 objective, time_window,probeDomain, probeInit, pde)
+                 objective,time_window,hessian_window,probeDomain,probeInit,pde)
                     for meshdata         in listmeshfile   
                     for powerdata        in listpowerfile   
                     for k_0              in listk_0 
@@ -200,6 +208,7 @@ def setuplitt(config):
                     for mu_a_tumor_ub    in listmu_a_tumor_ub
                     for objective        in listqoi        
                     for time_window      in listtime_window 
+                    for hessian_window   in listhessian_window 
                     for probeDomain      in listprobedomain 
                     for probeInit        in listprobeinit 
                     for pde              in listpde       ]
@@ -218,7 +227,7 @@ def setuplitt(config):
          optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
          optimize_pow, optimize_mu_a, optimize_mu_s, w_0_field, 
          k_0_field,k_0_ub,k_1_ub,mu_a_ub, mu_a_tumor_ub,
-          objective,time_window,probeDomain,probeInit,pde) in paramlist:
+          objective,time_window,hessian_window,probeDomain,probeInit,pde) in paramlist:
       # create directory hierarchy to store files
       namejob= "%s%02d" % (jobid,id)
       # create directories
@@ -312,6 +321,9 @@ def setuplitt(config):
         cntrlfile.set("optical","mu_s_optimize"  ,     optimize_mu_s     )
       cntrlfile.set("qoi_0","ideal_nzero_init" , "%d" % time_window[0] )
       cntrlfile.set("qoi_0","ideal_ntime_init" , "%d" % time_window[1] )
+      if (hessian_window != None):
+         cntrlfile.set("compexec","minhessiancol" , "%d" % hessian_window[0] )
+         cntrlfile.set("compexec","maxhessiancol" , "%d" % hessian_window[1] )
       cntrlfile.set("method",     "qoi"        ,       objective       )
       cntrlfile.set("method",     "pde"        ,          pde          )
       cntrlfile.set("probe" ,     "domain"     ,        probeDomain    )
