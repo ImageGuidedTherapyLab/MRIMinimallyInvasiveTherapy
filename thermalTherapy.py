@@ -84,7 +84,8 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
                          (workdir,jobid,namejob,namejob)
    # ranger
-   elif(comphost.split(".")[0] == "login3"):
+   elif(comphost.split(".")[0] == "login3" or 
+        comphost.split(".")[0] == "login4" ):
       # write a qsub file
       qsubfile=open("%s/%s/%s/%s.qsub" %(workdir,jobid,namejob,namejob) ,"w")
       qsubfile.write("#!/bin/bash                           \n"           )
@@ -100,9 +101,9 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
       qsubfile.write("# working directory.                  \n"           )
       qsubfile.write("#$ -cwd                             \n\n"           )
       qsubfile.write("#$ -o $JOB_NAME.o$JOB_ID            \n"             )
-      qsubfile.write("#$ -q normal                   \n"             )
-      qsubfile.write("#$ -pe 8way %d                      \n" % numproc   )
-      qsubfile.write("#$ -l h_rt=02:00:00                 \n"             )
+      qsubfile.write("#$ -q normal                        \n"             )
+      qsubfile.write("#$ -pe 16way %d                     \n" % numproc   )
+      qsubfile.write("#$ -l h_rt=10:00:00                 \n"             )
       qsubfile.write("set -x                              \n"             )
       qsubfile.write("ibrun ${WORK}/exec/%s_${PETSC_ARCH} %s %s \n" % \
                                               (Executable,base_options,param_options))
