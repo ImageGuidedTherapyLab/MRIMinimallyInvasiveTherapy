@@ -394,22 +394,24 @@ def setupkalman(iniFile):
      solverList = [None]
    
    # create list of command line params
-   cmdLineParams =[ (nzero,ntime,meascov,statecov,roi,linalg,solver) 
+   cmdLineParams =[ (nzero,ntime,meascov,statecov,modelcov,roi,linalg,solver) 
                     for nzero     in   nzeroList
                     for ntime     in   ntimeList
                     for meascov   in   meascovList
                     for statecov  in   statecovList
+                    for modelcov  in   modelcovList
                     for roi       in   roiList
                     for linalg    in   linalgList
                     for solver    in   solverList
                   ]
    listcmdLine=[]
-   for (nzero,ntime,meascov,statecov,roi,linalg,solver)  in cmdLineParams:
+   for (nzero,ntime,meascov,statecov,modelcov,roi,linalg,solver)  in cmdLineParams:
       cmdLineOpt  = "-ntime %d -X_0 %f -Y_0 %f -Z_0 %f " %  (ntime,x_0,y_0,z_0)
       cmdLineOpt= cmdLineOpt  + "-bodytemp %f " % bodyTemp
       if (nzero    != None): cmdLineOpt= cmdLineOpt + "-nzero %d "    % nzero
       if (meascov  != None): cmdLineOpt= cmdLineOpt + "-meascov %f  " % meascov
       if (statecov != None): cmdLineOpt= cmdLineOpt + "-statecov %f " % statecov
+      if (modelcov != None): cmdLineOpt= cmdLineOpt + "-modelcov %f " % modelcov
       if (linalg   != None): cmdLineOpt= cmdLineOpt + "-method %d "   % linalg
       if (solver   != None): cmdLineOpt= cmdLineOpt + "-solver %s "   % solver
       if (roi      != None): 
