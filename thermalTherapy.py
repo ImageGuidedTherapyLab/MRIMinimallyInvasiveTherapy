@@ -117,8 +117,11 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
                          (workdir,jobid,namejob,bsubbase,namejob,
                                         numproc,runtime_options)
    else: # default code execution
-      execcode="cd %s/%s/%s ; mpirun -n %d $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (workdir,jobid,namejob,numproc,
-                       Executable,base_options,param_options)
+      if(numproc > 1): 
+        execcode="cd %s/%s/%s; mpirun -n %d $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (workdir,jobid,namejob,numproc,
+                        Executable,base_options,param_options)
+      else:
+        execcode="cd %s/%s/%s; $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD %s %s > log.txt" % (workdir,jobid,namejob,Executable,base_options,param_options)
    # write control file with additional parameters
    inifile=open("%s/%s/files/control.ini" % (jobid,namejob) ,"w")
    cntrlfile.set("compexec","execcode",execcode)

@@ -434,6 +434,8 @@ def setupkalman(iniFile):
       namejob= "%s%02d" % (jobid,id)
       # create directories
       utilities.create_directories(jobid,namejob)
+      # add jobid to command line
+      cmdLine_options = cmdLine_options + "-jobid %02d " % id
       joblist.append( [namejob, numproc, cmdLine_options, iniFile, method]   )
       # setup power data
       timePowerList = map(utilities.ExtractListData,  
