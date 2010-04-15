@@ -18,8 +18,8 @@ instanceTag = "0020|0013"
 printTagExe = "/home/dfuentes/DDDAS/trunk/utilities/DicomImageReadReturnIntTag"
 
 # make new directory
-if(not os.path.isdir("s%dSorted" % dirID)):
-  os.mkdir("s%dSorted" % dirID)
+os.system('mkdir -p %s/Sorted/s%d' % (ExamPath,dirID) )
+
 # TODO add realtime abilities as data is written to the ExamPath
 for file in os.listdir( "%s/s%d" % (ExamPath,dirID) ):
     dicomFile = "%s/s%d/%s" % (ExamPath,dirID,file) 
@@ -27,4 +27,4 @@ for file in os.listdir( "%s/s%d" % (ExamPath,dirID) ):
     result = fout.read()
     timeid = int(result.split("=")[1])
     print  "%s %d" % (file,timeid) 
-    os.system( "cp %s s%dSorted/i%d.MRDC.%d" % (dicomFile,dirID, dirID + timeid,timeid ) )
+    os.system( "cp %s %s/Sorted/s%d/i%d.MRDC.%d" % (dicomFile,ExamPath,dirID,dirID+timeid,timeid) )
