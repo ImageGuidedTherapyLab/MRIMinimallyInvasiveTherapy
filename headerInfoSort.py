@@ -13,7 +13,11 @@ iniFile.readfp( open("%s" % controlfile , "r") )
 ExamPath   = iniFile.get(   "mrti" ,"exampath"    )
 magID      = iniFile.getint("mrti" ,"magnitudeid" )
 phaseID    = iniFile.getint("mrti" ,"phaseid"     )
-dictionary = iniFile.get(   "mrti" ,"dictionary"  )
+#get dicom Dictionary
+try:
+  dictionary= iniFile.get(   "mrti" ,"dictionary"  )
+except ConfigParser.NoOptionError:
+  raise IOError("\n\n    No Dicom Dictionary FOUND! " )
 instanceTag = "0020|0013"
 
 # TODO wrap c++ code to return  value directly
@@ -24,7 +28,7 @@ except ConfigParser.NoOptionError:
   DicomToComplex = "~/DDDAS/trunk/utilities/DicomReadWriteComplexImage"
 
 # make new directory
-os.system('mkdir -p %s/Sorted/s%d' % (ExamPath,magID) )
+os.system('mkdir -p %s/Processed/s%d' % (ExamPath,magID) )
 
 magnitudeList = os.listdir( "%s/s%d" % (ExamPath, magID ) )
 numFiles = len(magnitudeList) 
@@ -44,19 +48,19 @@ for magnitudeFile,phaseFile in zip(magnitudeList,phaseList):
     fin,fout = os.popen4( "%s %s '%s' %s 2> /dev/null " % (printTagExe,dicomMagFile,instanceTag,dictionary) )
     result = fout.read()
     magTimeID = int(result.split("=")[1])
-    os.system( "cp %s %s/Sorted/s%d/i%d.MRDC.%d" % (dicomMagFile,ExamPath,dirID,dirID+2*magTimeID-1,2*magTimeID-1) )
+    os.system( "cp %s %s/Processed/s%d/i%d.MRDC.%d" % (dicomMagFile,ExamPath,dirID,dirID+2*magTimeID-1,2*magTimeID-1) )
     # now copy phase
     dicomPhaseFile = "%s/s%d/%s" % (ExamPath,phaseID,  phaseFile  ) 
     fin,fout = os.popen4( "%s %s '%s' %s 2> /dev/null " % (printTagExe,dicomPhaseFile,instanceTag,dictionary) )
     result = fout.read()
     phaseTimeID = int(result.split("=")[1])
-    os.system( "cp %s %s/Sorted/s%d/i%d.MRDC.%d" % (dicomPhaseFile,ExamPath,dirID,dirID+2*phaseTimeID,2*phaseTimeID) )
+    os.system( "cp %s %s/Processed/s%d/i%d.MRDC.%d" % (dicomPhaseFile,ExamPath,dirID,dirID+2*phaseTimeID,2*phaseTimeID) )
     print  "%s %d %s %d " % (magnitudeFile,magTimeID,phaseFile,phaseTimeID) 
 
 
 # one based
 for fileid in range(1,numFiles+1):
-    os.system( "%s -M%s/Sorted/s%d/i%d.MRDC.%d -P%s/Sorted/s%d/i%d.MRDC.%d --output %s/Sorted/s%d/image -timeid %d" % ( 
+    os.system( "%s -M%s/Processed/s%d/i%d.MRDC.%d -P%s/Processed/s%d/i%d.MRDC.%d --output %s/Processed/s%d/image -timeid %d" % ( 
                   DicomToComplex ,
                       ExamPath,dirID,dirID+2*fileid-1,2*fileid-1, 
                       ExamPath,dirID,dirID+2*fileid  ,2*fileid  , 
