@@ -46,3 +46,26 @@ TARGET_LINK_LIBRARIES(DicomSeriesCopyHeader ITKCommon ITKIO)
 ADD_EXECUTABLE(SubsampleNoFilter SubsampleNoFilter.cxx )
 TARGET_LINK_LIBRARIES(SubsampleNoFilter  ITKBasicFilters ITKIO)
 
+ADD_EXECUTABLE(DicomReadWriteComplexImage DicomReadWriteComplexImage.cxx itkVTKImageVariableNameIO.h itkVTKImageVariableNameIO.cxx)
+TARGET_LINK_LIBRARIES(DicomReadWriteComplexImage ITKIO)
+
+# This example shows how to use python
+# Currently these languages have been tested:
+#  perl tcl ruby php4 pike
+
+FIND_PACKAGE(SWIG REQUIRED)
+INCLUDE(${SWIG_USE_FILE})
+
+FIND_PACKAGE(PythonLibs)
+INCLUDE_DIRECTORIES(${PYTHON_INCLUDE_PATH})
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
+
+SET(CMAKE_SWIG_FLAGS "")
+
+SET_SOURCE_FILES_PROPERTIES(DicomImageReadReturnTag.i PROPERTIES CPLUSPLUS ON)
+SET_SOURCE_FILES_PROPERTIES(DicomImageReadReturnTag.i PROPERTIES SWIG_FLAGS "-includeall")
+SWIG_ADD_MODULE(DicomImageReadReturnTag python DicomImageReadReturnTag.i DicomImageReadReturnTag.cxx)
+SWIG_LINK_LIBRARIES(DicomImageReadReturnTag ITKIO ${PYTHON_LIBRARIES})
+
+#ADD_EXECUTABLE(DicomImageReadReturnTag DicomImageReadReturnTag.cxx )
+#TARGET_LINK_LIBRARIES(DicomImageReadReturnTag ITKIO)
