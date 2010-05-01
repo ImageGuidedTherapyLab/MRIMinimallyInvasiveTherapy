@@ -52,12 +52,10 @@
 // Software Guide : EndLatex
 
 // system includes
-#include <boost/lexical_cast.hpp>
 #include <algorithm>
 #include <cctype>
 #include <iostream>
 #include <string>
-
 
 // Software Guide : BeginCodeSnippet
 #include "itkImageFileReader.h"
@@ -172,17 +170,18 @@ std::string GetDicomTag(const std::string &InputFile,
   //
   // Software Guide : EndLatex
 
-  try
-    {
-    // Software Guide : BeginCodeSnippet
-    reader->Update();
-    // Software Guide : EndCodeSnippet
-    }
-  catch (itk::ExceptionObject &ex)
-    {
-    std::cout << ex << std::endl;
-    return std::string("File Read Error");
-    }
+  // exception handling done in through swig interface file 
+  //try
+  //  {
+  //  // Software Guide : BeginCodeSnippet
+  reader->Update();
+  //  // Software Guide : EndCodeSnippet
+  //  }
+  //catch (itk::ExceptionObject &ex)
+  //  {
+  //  // print error message & throw exception again to catch in python
+  //  std::cout << ex << std::endl; 
+  //  }
 
   // Software Guide : BeginLatex
   // 
@@ -225,16 +224,16 @@ std::string GetDicomTag(const std::string &InputFile,
       }
     else
       {
-      std::cout << "(No Value Found in File)";
+      // print error message & throw exception to catch in python
+      throw( std::logic_error("No Value Found in File") );
       }
     std::cout << std::endl;
     }
   else
     {
-    std::cerr << "Trying to access inexistant DICOM tag." << std::endl;
+    throw( std::logic_error("Trying to access inexistant DICOM tag.") );
     }
   // Software Guide : EndCodeSnippet
-
 
   return value ;
 }

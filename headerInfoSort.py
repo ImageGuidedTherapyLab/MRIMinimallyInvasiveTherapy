@@ -1,6 +1,8 @@
 import sys
 import os
 import ConfigParser # file parser
+import itkUtilities # custom python module for access to itk library
+
 # use python Set: union, intersection, difference operations
 # to deal with real-time files in the file system
 #http://docs.python.org/library/sets.html
@@ -25,8 +27,6 @@ instanceTag = "0020|0013"
 ExamPath   = iniFile.get(   "mrti" ,"exampath"    )
 
 # Set C++ executable to get header data info
-# TODO wrap c++ code to return  value directly
-printTagExe = "/home/dfuentes/DDDAS/trunk/utilities/DicomImageReadReturnIntTag"
 try:
   DicomToComplex = iniFile.get(   "compexec" ,"Dicomtocomplex"  )
 except ConfigParser.NoOptionError: 
@@ -60,35 +60,31 @@ except ConfigParser.NoOptionError:
 os.system('mkdir -p %s/Processed/s%d' % (ExamPath,dirID) )
 
 
-
-
 # typically assume a high number of images to read in 
 ntime  = iniFile.getint("mrti","ntime")
 timeID = 0 
-while (timeID < ntime): 
+#while (timeID < ntime): 
 
 
 # TODO add realtime abilities as data is written to the ExamPath
 for magnitudeFile,phaseFile in zip(fileListOne,fileListTwo): 
     # copy magnitude first
     dicomMagFile   = "%s/s%d/%s" % (ExamPath, magnID ,magnitudeFile) 
-    fin,fout = os.popen4( "%s %s '%s' %s 2> /dev/null " % (printTagExe,dicomMagFile,instanceTag,dictionary) )
-    result = fout.read()
-    magTimeID = int(result.split("=")[1])
+    magTimeID = int( itkUtilities.GetDicomTag( dicomMagFile, instanceTag,
+                                                              dictionary) )
     os.system( "cp %s %s/Processed/s%d/i%d.MRDC.%d" % (dicomMagFile,ExamPath,dirID,dirID+2*magTimeID-1,2*magTimeID-1) )
     # now copy phase
     dicomPhaseFile = "%s/s%d/%s" % (ExamPath,phasID,  phaseFile  ) 
-    fin,fout = os.popen4( "%s %s '%s' %s 2> /dev/null " % (printTagExe,dicomPhaseFile,instanceTag,dictionary) )
-    result = fout.read()
-    phaseTimeID = int(result.split("=")[1])
+    phaseTimeID = int( itkUtilities.GetDicomTag( dicomPhaseFile, instanceTag,
+                                                                 dictionary) )
     os.system( "cp %s %s/Processed/s%d/i%d.MRDC.%d" % (dicomPhaseFile,ExamPath,dirID,dirID+2*phaseTimeID,2*phaseTimeID) )
     print  "%s %d %s %d " % (magnitudeFile,magTimeID,phaseFile,phaseTimeID) 
 
 
 # one based
-for fileid in range(1,numFiles+1):
-    os.system( "%s -M%s/Processed/s%d/i%d.MRDC.%d -P%s/Processed/s%d/i%d.MRDC.%d --output %s/Processed/s%d/image -timeid %d" % ( 
-                  DicomToComplex ,
-                      ExamPath,dirID,dirID+2*fileid-1,2*fileid-1, 
-                      ExamPath,dirID,dirID+2*fileid  ,2*fileid  , 
-                      ExamPath,dirID,fileid-1 )  ) 
+#for fileid in range(1,numFiles+1):
+#    os.system( "%s -M%s/Processed/s%d/i%d.MRDC.%d -P%s/Processed/s%d/i%d.MRDC.%d --output %s/Processed/s%d/image -timeid %d" % ( 
+#                  DicomToComplex ,
+#                      ExamPath,dirID,dirID+2*fileid-1,2*fileid-1, 
+#                      ExamPath,dirID,dirID+2*fileid  ,2*fileid  , 
+#                      ExamPath,dirID,fileid-1 )  ) 

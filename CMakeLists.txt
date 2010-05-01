@@ -31,24 +31,6 @@ IF(NOT X11_FOUND)
    MESSAGE("Could not find X11 package...")
 ENDIF(NOT X11_FOUND)
 
-ADD_EXECUTABLE(RigidRegistration RigidRegistration.cxx )
-TARGET_LINK_LIBRARIES(RigidRegistration ITKNumerics ITKIO)
-
-ADD_EXECUTABLE(DicomSeriesConvert DicomSeriesConvert.cxx )
-TARGET_LINK_LIBRARIES(DicomSeriesConvert ITKCommon ITKIO X11)
-
-ADD_EXECUTABLE(DicomCopyHeader DicomCopyHeader.cxx)
-TARGET_LINK_LIBRARIES(DicomCopyHeader ITKCommon ITKIO)
-
-ADD_EXECUTABLE(DicomSeriesCopyHeader DicomSeriesCopyHeader.cxx)
-TARGET_LINK_LIBRARIES(DicomSeriesCopyHeader ITKCommon ITKIO)
-
-ADD_EXECUTABLE(SubsampleNoFilter SubsampleNoFilter.cxx )
-TARGET_LINK_LIBRARIES(SubsampleNoFilter  ITKBasicFilters ITKIO)
-
-ADD_EXECUTABLE(DicomReadWriteComplexImage DicomReadWriteComplexImage.cxx itkVTKImageVariableNameIO.h itkVTKImageVariableNameIO.cxx)
-TARGET_LINK_LIBRARIES(DicomReadWriteComplexImage ITKIO)
-
 # This example shows how to use python
 # Currently these languages have been tested:
 #  perl tcl ruby php4 pike
@@ -64,8 +46,27 @@ SET(CMAKE_SWIG_FLAGS "")
 
 SET_SOURCE_FILES_PROPERTIES(DicomImageReadReturnTag.i PROPERTIES CPLUSPLUS ON)
 SET_SOURCE_FILES_PROPERTIES(DicomImageReadReturnTag.i PROPERTIES SWIG_FLAGS "-includeall")
-SWIG_ADD_MODULE(DicomImageReadReturnTag python DicomImageReadReturnTag.i DicomImageReadReturnTag.cxx)
-SWIG_LINK_LIBRARIES(DicomImageReadReturnTag ITKIO ${PYTHON_LIBRARIES})
+SWIG_ADD_MODULE(itkUtilities python DicomImageReadReturnTag.i DicomImageReadReturnTag.cxx)
+SWIG_LINK_LIBRARIES(itkUtilities ITKIO ${PYTHON_LIBRARIES})
 
 #ADD_EXECUTABLE(DicomImageReadReturnTag DicomImageReadReturnTag.cxx )
 #TARGET_LINK_LIBRARIES(DicomImageReadReturnTag ITKIO)
+
+#ADD_EXECUTABLE(RigidRegistration RigidRegistration.cxx )
+#TARGET_LINK_LIBRARIES(RigidRegistration ITKNumerics ITKIO)
+#
+#ADD_EXECUTABLE(DicomSeriesConvert DicomSeriesConvert.cxx )
+#TARGET_LINK_LIBRARIES(DicomSeriesConvert ITKCommon ITKIO X11)
+#
+#ADD_EXECUTABLE(DicomCopyHeader DicomCopyHeader.cxx)
+#TARGET_LINK_LIBRARIES(DicomCopyHeader ITKCommon ITKIO)
+#
+#ADD_EXECUTABLE(DicomSeriesCopyHeader DicomSeriesCopyHeader.cxx)
+#TARGET_LINK_LIBRARIES(DicomSeriesCopyHeader ITKCommon ITKIO)
+#
+#ADD_EXECUTABLE(SubsampleNoFilter SubsampleNoFilter.cxx )
+#TARGET_LINK_LIBRARIES(SubsampleNoFilter  ITKBasicFilters ITKIO)
+#
+#ADD_EXECUTABLE(DicomReadWriteComplexImage DicomReadWriteComplexImage.cxx itkVTKImageVariableNameIO.h itkVTKImageVariableNameIO.cxx)
+#TARGET_LINK_LIBRARIES(DicomReadWriteComplexImage ITKIO)
+#
