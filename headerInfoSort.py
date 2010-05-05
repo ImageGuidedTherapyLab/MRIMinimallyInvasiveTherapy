@@ -29,7 +29,7 @@ class AcquisitionBaseClass:
   def GetHeaderInfo(self):
     # loop over possible slice number tags to find the slice location
     for sliceIDKey in ["0021|104f"]:
-      nslice = int( itkUtilities.GetDicomTag( dicomMagFile, sliceIDKey ,
+      self.nslice = int( itkUtilities.GetDicomTag( dicomMagFile, sliceIDKey ,
                                                             self.dictionary) )
 
 
@@ -60,24 +60,38 @@ class SiemensAquisitionGEWrite(AcquisitionBaseClass):
       os.system( "cp %s %s/Processed/s%d/i%d.MRDC.%d" % (dicomPhaseFile,ExamPath,dirID,dirID+2*phaseTimeID,2*phaseTimeID) )
       print  "%s %d %s %d " % (magnitudeFile,magTimeID,phaseFile,phaseTimeID) 
    
+      #os.system( "%s -M%s/Processed/s%d/i%d.MRDC.%d -P%s/Processed/s%d/i%d.MRDC.%d --output %s/Processed/s%d/image -timeid %d" % ( DicomToComplex ,
    
-   # one based
-   #for fileid in range(1,numFiles+1):
-   #    os.system( "%s -M%s/Processed/s%d/i%d.MRDC.%d -P%s/Processed/s%d/i%d.MRDC.%d --output %s/Processed/s%d/image -timeid %d" % ( 
-   #                  DicomToComplex ,
-   #                      ExamPath,dirID,dirID+2*fileid-1,2*fileid-1, 
-   #                      ExamPath,dirID,dirID+2*fileid  ,2*fileid  , 
-   #                      ExamPath,dirID,fileid-1 )  ) 
 
 class GEAquisitionGEWrite(AcquisitionBaseClass):
-  dirID    = iniFile.getint("mrti" ,"dirid"     )
-  # try building list of real and imaginary data as default
-  realID   = iniFile.getint("mrti" ,"realid"      )
-  imagID   = iniFile.getint("mrti" ,"imaginaryid" )
-  try:
-     assert realID == imagID 
-  except AssertionError:
-     raise IndexError("\n\n    i have never encountered real and imaginary data in different directories... " )
+  def __init__(self):
+    self.dirID    = iniFile.getint("mrti" ,"dirid"     )
+    # try building list of real and imaginary data as default
+    self.realID   = iniFile.getint("mrti" ,"realid"      )
+    self.imagID   = iniFile.getint("mrti" ,"imaginaryid" )
+    try:
+       assert realID == imagID 
+    except AssertionError:
+       raise IndexError("\n\n    i have never encountered real and imaginary data in different directories... " )
+  def getFileList(self,istep):
+      nextFileList = []
+      for jjj in range(self.nslice):
+        realID = 2*nslice*(necho*istep+iecho+noffset) + (2*jjj+1)
+        imagID = realID + 1
+        realFile = "%s/s%d/i%d.MRDC.%d" % (ExamPath,DirId,DirId+realID,realID) )
+        imagFile = "%s/s%d/i%d.MRDC.%d" % (ExamPath,DirId,DirId+imagID,imagID) )
+        # check that file is available AND full file is available
+        if( os.access(realFile,os.R_OK) and os.stat > self.filesize):
+          nextFileList.append( "-R%s/s%d/i%d.MRDC.%d" % (ExamPath, DirId, 
+                                                       DirId + realID, realID) )
+        else:
+          raise IOError
+        if( os.access(imagFile,os.R_OK) and os.stat > self.filesize):
+          nextFileList.append( "-I%s/s%d/i%d.MRDC.%d" % (ExamPath, DirId, 
+                                                       DirId + imagID, imagID) )
+        else:
+          raise IOError
+  
 
 #single file use
 if __name__ == "__main__":
@@ -97,15 +111,19 @@ if __name__ == "__main__":
    fileProcess.GetHeaderInfo()
    
    # make new directory
-   os.system('mkdir -p %s/Processed/s%d' % (fileProcess.ExamPath,
-                                            fileProcess.dirID) )
+   os.system('mkdir -p Processed/s%d' % (fileProcess.dirID) )
    
    # typically assume a high number of images to read in 
    ntime  = fileProcess.iniFile.getint("mrti","ntime")
-   timeID = 0 
+   timeID = 0  # intialize and begin reading in files
    while (timeID < ntime): 
-      fileProcess.updateDirectoryInfo()
-      # parse the new files found, convert to complex format,
-      # and update the timeID
-      fileProcess.parseAndWriteAsComplexData()
-   
+      try: # try to update the FileList and convert to complex format
+         FileList = fileProcess.getFileList(timeID)
+         # write the files
+         os.system( "%s %s --output Processed/s%d/image -timeid %d" % ( 
+                 DicomToComplex , FileList, fileProcess.dirID, timeID ) ) 
+         # update the timeID
+         timeID = timeID + 1 
+      # IOError should be thrown if files not found
+      except IOError: 
+         time.sleep(2)  # wait a few seconds and try again
