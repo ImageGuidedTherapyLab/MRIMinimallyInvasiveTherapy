@@ -67,6 +67,6 @@ SWIG_LINK_LIBRARIES(itkUtilities ITKIO ${PYTHON_LIBRARIES})
 #ADD_EXECUTABLE(SubsampleNoFilter SubsampleNoFilter.cxx )
 #TARGET_LINK_LIBRARIES(SubsampleNoFilter  ITKBasicFilters ITKIO)
 #
-#ADD_EXECUTABLE(DicomReadWriteComplexImage DicomReadWriteComplexImage.cxx itkVTKImageVariableNameIO.h itkVTKImageVariableNameIO.cxx)
-#TARGET_LINK_LIBRARIES(DicomReadWriteComplexImage ITKIO)
+ADD_EXECUTABLE(DicomReadWriteComplexImage DicomReadWriteComplexImage.cxx itkVTKImageVariableNameIO.h itkVTKImageVariableNameIO.cxx)
+TARGET_LINK_LIBRARIES(DicomReadWriteComplexImage ITKIO)
 #

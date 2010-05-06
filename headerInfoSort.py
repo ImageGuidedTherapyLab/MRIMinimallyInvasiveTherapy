@@ -8,8 +8,11 @@ import itkUtilities # custom python module for access to itk library
 #http://docs.python.org/library/sets.html
 from sets import Set
 
+thisScript = sys.argv[0]
 class AcquisitionBaseClass:
+  """ Base Class for realtime image conversion...  """
   def __init__(self,ControlFile):
+    print " base class constructor called \n\n" 
     #read the main control file
     self.iniFile  = ConfigParser.ConfigParser()
     self.iniFile.readfp( open("%s" % ControlFile , "r") )
@@ -25,24 +28,37 @@ class AcquisitionBaseClass:
     try:
       self.DicomToComplex = self.iniFile.get(   "compexec" ,"Dicomtocomplex"  )
     except ConfigParser.NoOptionError: 
-      self.DicomToComplex = "~/DDDAS/trunk/utilities/DicomReadWriteComplexImage"
+      self.DicomToComplex = thisScript[:thisScript.rfind("/")] +"/DicomReadWriteComplexImage"
   def GetHeaderInfo(self,fileName):
     # get file size of "representative file
     self.filesize = os.path.getsize(fileName) 
-    # loop over possible slice number tags to find the slice location
-    for sliceIDKey in ["0021|104f"]:
-      self.nslice = int( itkUtilities.GetDicomTag( fileName, sliceIDKey ,
-                                                            self.dictionary) )
+    # first check if the user knows and input the number of slices
+    try : 
+      self.nslice = self.iniFile.get(  "mrti" ,"nslice"  )
+    # if option not found attempt to get slice info from header
+    except ConfigParser.NoOptionError:
+      # loop over possible slice number tags to find the slice location
+      for sliceIDKey in ["0021|104f",None]:
+        if (sliceIDKey == None) : 
+          raise RuntimeError("\n\n    Can't find time Tag! " )
+        try : 
+          self.nslice = int( itkUtilities.GetDicomTag( fileName, sliceIDKey ,
+                                                              self.dictionary) )
+          break # key seems to be successul
+        except ValueError: 
+          pass # try the next key
 
 class SiemensAquisitionGEWrite(AcquisitionBaseClass):
-"""
-    This is used for the Siemens Aquisitions data that was transfered to a GE
-machine and written in GE DICOM format. This is NOT intended for real-time...
-"""
-  def __init__(self):
+  """ This is used for the Siemens Aquisitions data that was transfered to a GE
+      machine and written in GE DICOM format. 
+      This is NOT intended for real-time...
+  """
+  def __init__(self,ControlFile):
+    # call base class constructor to setup control file
+    AcquisitionBaseClass.__init__(self,ControlFile)
     # try building list of magnitude and phase data
-    magnID   = iniFile.getint("mrti" ,"magnitudeid" )
-    phasID   = iniFile.getint("mrti" ,"phaseid"     )
+    magnID   = self.iniFile.getint("mrti" ,"magnitudeid" )
+    phasID   = self.iniFile.getint("mrti" ,"phaseid"     )
     # this should not be done in real time
     # read list of all files
     fileMagnList = os.listdir( "%s/s%d" % (self.ExamPath,magnID) )
@@ -52,21 +68,23 @@ machine and written in GE DICOM format. This is NOT intended for real-time...
        assert numFiles == len(filePhasList)     
     except AssertionError:
        raise IndexError("\n\n    error with number of files in the directory " )
+    # intialize file list
+    self.fileList = {}
     # preprocess and sort by time instance
     # sorting by number of slices is done in  getFileList
     for magnitudeFile,phaseFile in zip(fileMagnList,filePhasList): 
       # store magnitude time id
       dicomMagnFile   = "%s/s%d/%s" % (self.ExamPath,magnID,magnitudeFile) 
-      magnTimeID   = int( itkUtilities.GetDicomTag( dicomMagnFile, instanceTag,
-                                                                   dictionary) )
+      magnTimeID   = int( itkUtilities.GetDicomTag( dicomMagnFile, 
+                                        self.instanceTag, self.dictionary) )
       try: # if key exists then append the file
          self.fileList["%d" % magnTimeID].append( ["-M",dicomMagnFile] )
       except KeyError: 
          self.fileList["%d" % magnTimeID]   =   [ ["-M",dicomMagnFile] ]
       # store phase time id
       dicomPhasFile = "%s/s%d/%s" % (self.ExamPath,phasID,    phaseFile) 
-      phasTimeID = int( itkUtilities.GetDicomTag( dicomPhasFile, instanceTag,
-                                                                   dictionary) )
+      phasTimeID = int( itkUtilities.GetDicomTag( dicomPhasFile, 
+                                        self.instanceTag, self.dictionary) )
       try: 
          self.fileList["%d" % phasTimeID].append( ["-P",dicomPhasFile] )
       except KeyError: 
@@ -82,20 +100,20 @@ machine and written in GE DICOM format. This is NOT intended for real-time...
          nextFileList = nextFileList + " %s %s " % (dataType,fileName)
       return nextFileList 
   def GetHeaderInfo(self):
-      dataType,fileName  = self.fileList["%d" % 1]
+      dataType,fileName  = (self.fileList["%d" % 1])[0]
       # call base class to get basic header info
-      AcquisitionBaseClass.GetHeaderInfo(self,fileName):
+      AcquisitionBaseClass.GetHeaderInfo(self,fileName)
    
 
 class GEAquisitionGEWrite(AcquisitionBaseClass):
-"""
-    This is used for the GE Aquisition written in GE DICOM format. This IS intended for real-time...
-"""
-  def __init__(self):
+  """ This is used for the GE Aquisition written in GE DICOM format. 
+      This IS intended for real-time...
+  """
+  def __init__(self,ControlFile):
+    # call base class constructor to setup control file
+    AcquisitionBaseClass.__init__(self,ControlFile)
+    # get directory id...
     self.dirID    = iniFile.getint("mrti" ,"dirid"     )
-    # try building list of real and imaginary data as default
-    self.realID   = iniFile.getint("mrti" ,"realid"      )
-    self.imagID   = iniFile.getint("mrti" ,"imaginaryid" )
     try:
        assert realID == imagID 
     except AssertionError:
@@ -106,8 +124,8 @@ class GEAquisitionGEWrite(AcquisitionBaseClass):
       for jjj in range(self.nslice):
         realID = 2*nslice*(necho*istep+iecho+noffset) + (2*jjj+1)
         imagID = realID + 1
-        realFile = "%s/s%d/i%d.MRDC.%d" % (ExamPath,DirId,DirId+realID,realID) )
-        imagFile = "%s/s%d/i%d.MRDC.%d" % (ExamPath,DirId,DirId+imagID,imagID) )
+        realFile = "%s/s%d/i%d.MRDC.%d" % (ExamPath,DirId,DirId+realID,realID) 
+        imagFile = "%s/s%d/i%d.MRDC.%d" % (ExamPath,DirId,DirId+imagID,imagID) 
         # check that file is available AND full file is available
         if( os.access(realFile,os.R_OK) and os.access(imagFile,os.R_OK) 
                                         and 
@@ -115,16 +133,16 @@ class GEAquisitionGEWrite(AcquisitionBaseClass):
                                         and
             os.path.getsize(imagFile) >= self.filesize):
           nextFileList = nextFileList + " -R%s/s%d/i%d.MRDC.%d" % (
-                                      ExamPath, DirId, DirId + realID, realID) )
+                                      ExamPath, DirId, DirId + realID, realID) 
           nextFileList = nextFileList + " -I%s/s%d/i%d.MRDC.%d" % (
-                                      ExamPath, DirId, DirId + imagID, imagID) )
+                                      ExamPath, DirId, DirId + imagID, imagID) 
         else:
           raise IOError
   def GetHeaderInfo(self):
       fileID = 2*nslice*(necho*1+iecho+noffset) + 1
-      fileName = "%s/s%d/i%d.MRDC.%d" % (ExamPath,DirId,DirId+fileID,fileID) )
+      fileName = "%s/s%d/i%d.MRDC.%d" % (ExamPath,DirId,DirId+fileID,fileID) 
       # call base class to get basic header info
-      AcquisitionBaseClass.GetHeaderInfo(self,fileName):
+      AcquisitionBaseClass.GetHeaderInfo(self,fileName)
 
 #single file use
 if __name__ == "__main__":
@@ -149,13 +167,13 @@ if __name__ == "__main__":
    # make new directory
    os.system('mkdir -p Processed/s%d' % (fileProcess.dirID) )
    
-   timeID = 0  # intialize and begin reading in files
+   timeID = 1  # intialize and begin reading in files
    while (timeID < ntime): 
       try: # try to update the FileList and convert to complex format
          FileList = fileProcess.getFileList(timeID)
          # write the files
          os.system( "%s %s --output Processed/s%d/image -timeid %d" % ( 
-                 DicomToComplex , FileList, fileProcess.dirID, timeID ) ) 
+                 fileProcess.DicomToComplex , FileList, fileProcess.dirID, timeID ) ) 
          # update the timeID
          timeID = timeID + 1 
       # IOError should be thrown if files not found
