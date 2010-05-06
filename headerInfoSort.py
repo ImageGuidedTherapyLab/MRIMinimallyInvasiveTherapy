@@ -2,7 +2,6 @@ import sys
 import os
 import ConfigParser # file parser
 import itkUtilities # custom python module for access to itk library
-
 # TODO use python Set: union, intersection, difference operations
 # to deal with real-time files in the file system
 #http://docs.python.org/library/sets.html
@@ -29,24 +28,62 @@ class AcquisitionBaseClass:
       self.DicomToComplex = self.iniFile.get(   "compexec" ,"Dicomtocomplex"  )
     except ConfigParser.NoOptionError: 
       self.DicomToComplex = thisScript[:thisScript.rfind("/")] +"/DicomReadWriteComplexImage"
+  def GetValueFromKeyList(self,Section,Entry,fileName,KeyList):
+    try : # first check if the user input the value
+      Value =  self.iniFile.get( Section , Entry )
+      print "Read %s = %s from iniFile " % (Entry,Value) 
+      return Value
+    # if option not found attempt to get slice info from header
+    except ConfigParser.NoOptionError:
+      # loop over possible tags to find the key of interest
+      KeyList.append(None)
+      # KeyList should be of the form ["xxxx|xxxx","xxxx|xxxx",...,None] 
+      for potentialIDKey in KeyList:
+        if (potentialIDKey == None): #Last Key has been reached
+          raise RuntimeError("\n\n    Can't find %s Tag! " % Entry )
+        try : 
+          return itkUtilities.GetDicomTag(fileName, potentialIDKey ,
+                                                    self.dictionary) 
+        except ValueError: 
+          pass # try the next key
   def GetHeaderInfo(self,fileName):
     # get file size of "representative file
     self.filesize = os.path.getsize(fileName) 
-    # first check if the user knows and input the number of slices
-    try : 
-      self.nslice = self.iniFile.get(  "mrti" ,"nslice"  )
+    # number of slice locations
+    self.nslice   = int( self.GetValueFromKeyList("mrti","nslice",
+                                                     fileName, ["0021|104f"] ) )
+    # echo time
+    self.echoTime = float( self.GetValueFromKeyList("mrti","echotime",
+                                                     fileName, ["0018|0081"] ) )
+    # imaging frequency / gyromagnetic ratio
+    self.imagFreq = float( self.GetValueFromKeyList("mrti","imagfreq",
+                                                     fileName, ["0018|0084"] ) )
+    # number of echos 
+    self.imagFreq = int(   self.GetValueFromKeyList("mrti","necho",
+                                                     fileName, ["0019|107e"] ) )
+    # get image acquisition time
+    try : # first check if the user input the value
+       self.deltat = self.iniFile.get( "mrti" , "deltat" )
     # if option not found attempt to get slice info from header
     except ConfigParser.NoOptionError:
-      # loop over possible slice number tags to find the slice location
-      for sliceIDKey in ["0021|104f",None]:
-        if (sliceIDKey == None) : 
-          raise RuntimeError("\n\n    Can't find time Tag! " )
-        try : 
-          self.nslice = int( itkUtilities.GetDicomTag( fileName, sliceIDKey ,
-                                                              self.dictionary) )
-          break # key seems to be successul
-        except ValueError: 
-          pass # try the next key
+       acqDurationIdkey = "0019|105a"
+       fastPhaseIdkey   = "0019|10f2" 
+       acqDuration = float( itkUtilities.GetDicomTag(fileName, 
+                                         acqDurationIdkey , self.dictionary) )
+       fastPhase = int( itkUtilities.GetDicomTag(fileName, 
+                                         fastPhaseIdkey   , self.dictionary) )
+       # convert from \mu second to second
+       self.acquisitionTime = acqDuration / fastPhase * 1.e-6;
+    except ValueError: #TODO do i need to nest this
+       print "estimating acquistion time as TR*number phase encodes..."
+       repetitionTimeIdkey  = "0019|105a" #FIXME need the appropriate key
+       numPhaseEncodesIdkey = "0019|10f2" #FIXME need the appropriate key
+       repetitionTime = float( itkUtilities.GetDicomTag(fileName, 
+                                         repetitionTimeIdkey, self.dictionary) )
+       numPhaseEncodes = int( itkUtilities.GetDicomTag(fileName, 
+                                      numPhaseEncodesIdkey  , self.dictionary) )
+       self.deltat = numPhaseEncodesIdkey  * repetitionTime 
+
 
 class SiemensAquisitionGEWrite(AcquisitionBaseClass):
   """ This is used for the Siemens Aquisitions data that was transfered to a GE
@@ -97,7 +134,7 @@ class SiemensAquisitionGEWrite(AcquisitionBaseClass):
          # TODO sort by slice number, works for single slice for now...
          # sliceID = int( itkUtilities.GetDicomTag( fileName , sliceKey,
          #                                                     dictionary) )
-         nextFileList = nextFileList + " %s %s " % (dataType,fileName)
+         nextFileList = nextFileList + " %s%s " % (dataType,fileName)
       return nextFileList 
   def GetHeaderInfo(self):
       dataType,fileName  = (self.fileList["%d" % 1])[0]
@@ -173,7 +210,7 @@ if __name__ == "__main__":
          FileList = fileProcess.getFileList(timeID)
          # write the files
          os.system( "%s %s --output Processed/s%d/image -timeid %d" % ( 
-                 fileProcess.DicomToComplex , FileList, fileProcess.dirID, timeID ) ) 
+                fileProcess.DicomToComplex , FileList, fileProcess.dirID, timeID ) ) 
          # update the timeID
          timeID = timeID + 1 
       # IOError should be thrown if files not found
