@@ -36,12 +36,12 @@ if(Executable == "image"):
 
   #get the required header information
   HeaderIni = ConfigParser.ConfigParser()
-  HeaderIni.readfp( open("%s/Processed/s%d/imageHeader.0000.ini" % \
+  HeaderIni.readfp( open("%s/Processed/s%d/imageHeader.ini" % \
                                                   (ExamPath,DirId) , "r") )
   deltat    = HeaderIni.getfloat("rawdata" ,"deltat")
   imagfreq  = HeaderIni.getfloat("rawdata" ,"imagfreq")
   echotime  = HeaderIni.getfloat("rawdata" ,"echotime")
-  necho     = HeaderIni.getfloat("rawdata" ,"necho"   )
+  necho     = HeaderIni.getint(  "rawdata" ,"necho"   )
 
   # constant runtime options
   base_options = " %s/Processed %d %s %s -magIx %d -magIy %d -necho %d -deltat %f -echotime %f -imagfreq %f" % \

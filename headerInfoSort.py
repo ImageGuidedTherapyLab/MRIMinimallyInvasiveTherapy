@@ -59,11 +59,11 @@ class AcquisitionBaseClass:
     self.imagFreq = float( self.GetValueFromKeyList("mrti","imagfreq",
                                                      fileName, ["0018|0084"] ) )
     # number of echos 
-    self.imagFreq = int(   self.GetValueFromKeyList("mrti","necho",
+    self.necho = int(   self.GetValueFromKeyList("mrti","necho",
                                                      fileName, ["0019|107e"] ) )
     # get image acquisition time
     try : # first check if the user input the value
-       self.deltat = self.iniFile.get( "mrti" , "deltat" )
+       self.deltat = float(self.iniFile.get( "mrti" , "deltat" ))
     # if option not found attempt to get slice info from header
     except ConfigParser.NoOptionError:
        acqDurationIdkey = "0019|105a"
@@ -83,6 +83,17 @@ class AcquisitionBaseClass:
        numPhaseEncodes = int( itkUtilities.GetDicomTag(fileName, 
                                       numPhaseEncodesIdkey  , self.dictionary) )
        self.deltat = numPhaseEncodesIdkey  * repetitionTime 
+    HeaderIni = ConfigParser.ConfigParser()
+    inifile = open("%s/Processed/s%d/imageHeader.ini" % \
+                                             (self.ExamPath,self.dirID) , "w") 
+    HeaderIni.add_section("rawdata")
+    HeaderIni.set("rawdata" ,"deltat"  ,"%f" % self.deltat  )
+    HeaderIni.set("rawdata" ,"imagfreq","%f" % self.imagFreq)
+    HeaderIni.set("rawdata" ,"echotime","%f" % self.echoTime)
+    HeaderIni.set("rawdata" ,"necho"   ,"%d" % self.necho   )
+    HeaderIni.write(inifile)
+    inifile.close; inifile.flush() #ensure entire file written before continuing
+
 
 
 class SiemensAquisitionGEWrite(AcquisitionBaseClass):
