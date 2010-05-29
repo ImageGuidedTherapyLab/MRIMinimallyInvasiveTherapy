@@ -334,8 +334,7 @@ std::vector<double>  GetPixelValue(const std::string &InputFile,
   // Software Guide : EndLatex 
 
   // Software Guide : BeginCodeSnippet
-  const char * filename = argv[1];
-  reader->SetFileName( filename );
+  reader->SetFileName( InputFile );
   // Software Guide : EndCodeSnippet
 
 
@@ -420,10 +419,10 @@ std::vector<double>  GetPixelValue(const std::string &InputFile,
   ImageType::PixelType   tmpValue = image->GetPixel( pixelIndex );
 
   // Software Guide : EndCodeSnippet
-  std::vector<double>  GetPixelValue(3,0.0);
-  pixelValue[0] = tmpIndex[0];
-  pixelValue[1] = tmpIndex[1];
-  pixelValue[2] = tmpIndex[2];
+  std::vector<double>  pixelValue(3,0.0);
+  pixelValue[0] = tmpValue[0];
+  pixelValue[1] = tmpValue[1];
+  pixelValue[2] = tmpValue[2];
 
   return pixelValue;
 }
