@@ -56,6 +56,7 @@
 #include <cctype>
 #include <iostream>
 #include <string>
+#include <vector>
 
 // Software Guide : BeginCodeSnippet
 #include "itkImageFileReader.h"
@@ -236,4 +237,193 @@ std::string GetDicomTag(const std::string &InputFile,
   // Software Guide : EndCodeSnippet
 
   return value ;
+}
+/*=========================================================================
+
+  Program:   Insight Segmentation & Registration Toolkit
+  Module:    $RCSfile: Image2.cxx,v $
+  Language:  C++
+  Date:      $Date: 2009-03-17 21:11:41 $
+  Version:   $Revision: 1.20 $
+
+  Copyright (c) Insight Software Consortium. All rights reserved.
+  See ITKCopyright.txt or http://www.itk.org/HTML/Copyright.htm for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even 
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
+     PURPOSE.  See the above copyright notices for more information.
+
+=========================================================================*/
+//  Software Guide : BeginLatex
+//
+//  The first thing required to read an image from a file is to include
+//  the header file of the \doxygen{ImageFileReader} class.
+//
+//  Software Guide : EndLatex 
+
+std::vector<double>  GetPixelValue(const std::string &InputFile, 
+                                   const std::vector<int> inputIndex )
+{
+  // Software Guide : BeginLatex
+  //
+  // Then, the image type should be defined by specifying the
+  // type used to represent pixels and the dimensions of the image.
+  //
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  typedef itk::Vector< double, 3 >             PixelType;
+  const unsigned int                       Dimension = 3;
+
+  typedef itk::Image< PixelType, Dimension >   ImageType;
+  // Software Guide : EndCodeSnippet
+
+
+  // Software Guide : BeginLatex
+  //
+  // Using the image type, it is now possible to instantiate the image reader
+  // class. The image type is used as a template parameter to define how the
+  // data will be represented once it is loaded into memory. This type does
+  // not have to correspond exactly to the type stored in the file. However,
+  // a conversion based on C-style type casting is used, so the type chosen
+  // to represent the data on disk must be sufficient to characterize it
+  // accurately. Readers do not apply any transformation to the pixel data
+  // other than casting from the pixel type of the file to the pixel type of
+  // the ImageFileReader. The following illustrates a typical
+  // instantiation of the ImageFileReader type.
+  //
+  // \index{itk::ImageFileReader!Instantiation}
+  // \index{itk::Image!read}
+  //
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  typedef itk::ImageFileReader< ImageType >  ReaderType;
+  // Software Guide : EndCodeSnippet
+
+
+  // Software Guide : BeginLatex
+  //
+  // The reader type can now be used to create one reader object.  A
+  // \doxygen{SmartPointer} (defined by the \code{::Pointer} notation) is used
+  // to receive the reference to the newly created reader.  The \code{New()}
+  // method is invoked to create an instance of the image reader.
+  //
+  // \index{itk::ImageFileReader!New()}
+  // \index{itk::ImageFileReader!Pointer}
+  //
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  ReaderType::Pointer reader = ReaderType::New();
+  // Software Guide : EndCodeSnippet
+
+
+  // Software Guide : BeginLatex
+  //
+  // The minimum information required by the reader is the filename
+  // of the image to be loaded in memory. This is provided through
+  // the \code{SetFileName()} method. The file format here is inferred
+  // from the filename extension. The user may also explicitly specify the
+  // data format explicitly using the \doxygen{ImageIO} (See
+  // Chapter~\ref{sec:ImagReadWrite} \pageref{sec:ImagReadWrite} for more
+  // information
+  //
+  // \index{itk::ImageFileReader!SetFileName()}
+  //
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  const char * filename = argv[1];
+  reader->SetFileName( filename );
+  // Software Guide : EndCodeSnippet
+
+
+  // Software Guide : BeginLatex
+  //
+  // Reader objects are referred to as pipeline source objects; they
+  // respond to pipeline update requests and initiate the data flow in the
+  // pipeline. The pipeline update mechanism ensures that the reader only
+  // executes when a data request is made to the reader and the reader has
+  // not read any data.  In the current example we explicitly invoke the
+  // \code{Update()} method because the output of the reader is not connected
+  // to other filters. In normal application the reader's output is connected
+  // to the input of an image filter and the update invocation on the filter
+  // triggers an update of the reader. The following line illustrates how an
+  // explicit update is invoked on the reader.
+  //
+  // \index{itk::ImageFileReader!Update()}
+  //
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  reader->Update();
+  // Software Guide : EndCodeSnippet
+
+
+  // Software Guide : BeginLatex
+  //
+  // Access to the newly read image can be gained by calling the
+  // \code{GetOutput()} method on the reader. This method can also be called
+  // before the update request is sent to the reader.  The reference to the
+  // image will be valid even though the image will be empty until the reader
+  // actually executes.
+  //
+  // \index{itk::ImageFileReader!GetOutput()}
+  //
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  ImageType::Pointer image = reader->GetOutput();
+  // Software Guide : EndCodeSnippet
+
+  // The individual position of a pixel inside the image is identified by a
+  // unique index. An index is an array of integers that defines the position
+  // of the pixel along each coordinate dimension of the image. The IndexType
+  // is automatically defined by the image and can be accessed using the
+  // scope operator like \doxygen{Index}. The length of the array will match
+  // the dimensions of the associated image.
+  //
+  // The following code illustrates the declaration of an index variable and
+  // the assignment of values to each of its components.  Please note that
+  // \code{Index} does not use SmartPointers to access it. This is because
+  // \code{Index} is a light-weight object that is not intended to be shared
+  // between objects. It is more efficient to produce multiple copies of
+  // these small objects than to share them using the SmartPointer
+  // mechanism.
+  // 
+  // The following lines declare an instance of the index type and initialize
+  // its content in order to associate it with a pixel position in the image.
+  //
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  ImageType::IndexType pixelIndex;
+ 
+  pixelIndex[0] = inputIndex[0];   // x position
+  pixelIndex[1] = inputIndex[1];   // y position
+  pixelIndex[2] = inputIndex[2];   // z position
+  // Software Guide : EndCodeSnippet
+
+
+  // Software Guide : BeginLatex
+  //
+  // Having defined a pixel position with an index, it is then possible to
+  // access the content of the pixel in the image.  The \code{GetPixel()}
+  // method allows us to get the value of the pixels.
+  //
+  // \index{itk::Image!GetPixel()}
+  // 
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  ImageType::PixelType   tmpValue = image->GetPixel( pixelIndex );
+
+  // Software Guide : EndCodeSnippet
+  std::vector<double>  GetPixelValue(3,0.0);
+  pixelValue[0] = tmpIndex[0];
+  pixelValue[1] = tmpIndex[1];
+  pixelValue[2] = tmpIndex[2];
+
+  return pixelValue;
 }

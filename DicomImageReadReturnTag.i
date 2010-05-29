@@ -48,11 +48,22 @@
     SWIG_exception(SWIG_RuntimeError, "Don't Know What Happened...");
   }
 }
+%include "std_vector.i"
+/* Instantiate templates used by example */
+namespace std {
+   %template(IntVector) vector<int>;
+   %template(DoubleVector) vector<double>;
+}
+
 %{
 /* Put headers and other declarations here */
 #include "itkImage.h"
 std::string GetDicomTag(const std::string &InputFile, const std::string &TagID, const std::string &DicomDictionary);
+std::vector<double>  GetPixelValue(const std::string &InputFile, 
+                                   const std::vector<int> inputIndex );
 %}
 
 std::string GetDicomTag(const std::string &InputFile, const std::string &TagID, const std::string &DicomDictionary);
 
+std::vector<double>  GetPixelValue(const std::string &InputFile, 
+                                   const std::vector<int> inputIndex );
