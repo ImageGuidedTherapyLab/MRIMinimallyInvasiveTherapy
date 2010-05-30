@@ -274,10 +274,39 @@ std::vector<double>  GetPixelValue(const std::string &InputFile,
   // Software Guide : BeginCodeSnippet
   typedef itk::Vector< double, 3 >             PixelType;
   const unsigned int                       Dimension = 3;
+  const unsigned int                       Debug = 0;
 
   typedef itk::Image< PixelType, Dimension >   ImageType;
   // Software Guide : EndCodeSnippet
 
+  // The individual position of a pixel inside the image is identified by a
+  // unique index. An index is an array of integers that defines the position
+  // of the pixel along each coordinate dimension of the image. The IndexType
+  // is automatically defined by the image and can be accessed using the
+  // scope operator like \doxygen{Index}. The length of the array will match
+  // the dimensions of the associated image.
+  //
+  // The following code illustrates the declaration of an index variable and
+  // the assignment of values to each of its components.  Please note that
+  // \code{Index} does not use SmartPointers to access it. This is because
+  // \code{Index} is a light-weight object that is not intended to be shared
+  // between objects. It is more efficient to produce multiple copies of
+  // these small objects than to share them using the SmartPointer
+  // mechanism.
+  // 
+  // The following lines declare an instance of the index type and initialize
+  // its content in order to associate it with a pixel position in the image.
+  //
+  // Software Guide : EndLatex 
+
+  // Software Guide : BeginCodeSnippet
+  ImageType::IndexType pixelIndex;
+ 
+  pixelIndex[0] = inputIndex[0];   // x position
+  pixelIndex[1] = inputIndex[1];   // y position
+  pixelIndex[2] = inputIndex[2];   // z position
+  // Software Guide : EndCodeSnippet
+  if(Debug) std::cout << pixelIndex << std::endl;
 
   // Software Guide : BeginLatex
   //
@@ -334,9 +363,9 @@ std::vector<double>  GetPixelValue(const std::string &InputFile,
   // Software Guide : EndLatex 
 
   // Software Guide : BeginCodeSnippet
+  if(Debug) std::cout << InputFile << std::endl;
   reader->SetFileName( InputFile );
   // Software Guide : EndCodeSnippet
-
 
   // Software Guide : BeginLatex
   //
@@ -356,6 +385,7 @@ std::vector<double>  GetPixelValue(const std::string &InputFile,
   // Software Guide : EndLatex 
 
   // Software Guide : BeginCodeSnippet
+  if(Debug) std::cout << "reading file..." << std::endl;
   reader->Update();
   // Software Guide : EndCodeSnippet
 
@@ -374,34 +404,7 @@ std::vector<double>  GetPixelValue(const std::string &InputFile,
 
   // Software Guide : BeginCodeSnippet
   ImageType::Pointer image = reader->GetOutput();
-  // Software Guide : EndCodeSnippet
-
-  // The individual position of a pixel inside the image is identified by a
-  // unique index. An index is an array of integers that defines the position
-  // of the pixel along each coordinate dimension of the image. The IndexType
-  // is automatically defined by the image and can be accessed using the
-  // scope operator like \doxygen{Index}. The length of the array will match
-  // the dimensions of the associated image.
-  //
-  // The following code illustrates the declaration of an index variable and
-  // the assignment of values to each of its components.  Please note that
-  // \code{Index} does not use SmartPointers to access it. This is because
-  // \code{Index} is a light-weight object that is not intended to be shared
-  // between objects. It is more efficient to produce multiple copies of
-  // these small objects than to share them using the SmartPointer
-  // mechanism.
-  // 
-  // The following lines declare an instance of the index type and initialize
-  // its content in order to associate it with a pixel position in the image.
-  //
-  // Software Guide : EndLatex 
-
-  // Software Guide : BeginCodeSnippet
-  ImageType::IndexType pixelIndex;
- 
-  pixelIndex[0] = inputIndex[0];   // x position
-  pixelIndex[1] = inputIndex[1];   // y position
-  pixelIndex[2] = inputIndex[2];   // z position
+  if(Debug) std::cout << "file read..." << std::endl;
   // Software Guide : EndCodeSnippet
 
 
@@ -417,6 +420,7 @@ std::vector<double>  GetPixelValue(const std::string &InputFile,
 
   // Software Guide : BeginCodeSnippet
   ImageType::PixelType   tmpValue = image->GetPixel( pixelIndex );
+  if(Debug) std::cout << tmpValue << std::endl;
 
   // Software Guide : EndCodeSnippet
   std::vector<double>  pixelValue(3,0.0);
