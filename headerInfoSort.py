@@ -137,6 +137,9 @@ class SiemensAquisitionGEWrite(AcquisitionBaseClass):
          self.fileList["%d" % phasTimeID].append( ["-P",dicomPhasFile] )
       except KeyError: 
          self.fileList["%d" % phasTimeID]   =   [ ["-P",dicomPhasFile] ]
+    # ensure time instance 0 exists
+    if "0" not in self.fileList:
+      self.fileList["0"] = self.fileList["1"] 
     # set output to magnitude id
     self.dirID = magnID
   def getFileList(self,istep):
@@ -166,6 +169,7 @@ class GEAquisitionGEWrite(AcquisitionBaseClass):
        assert realID == imagID 
     except AssertionError:
        raise IndexError("\n\n    i have never encountered real and imaginary data in different directories... " )
+    # TODO ensure can handle time instance zero
   def getFileList(self,istep):
       nextFileList = " "
       iecho = 0  # TODO add CSI  > 1 echo
@@ -209,13 +213,13 @@ if __name__ == "__main__":
    # typically assume a high number of images to read in 
    ntime  = fileProcess.iniFile.getint("mrti","ntime")
 
-   # get some initial header info from the first file...
-   fileProcess.GetHeaderInfo()
-   
    # make new directory
    os.system('mkdir -p Processed/s%d' % (fileProcess.dirID) )
    
-   timeID = 1  # intialize and begin reading in files
+   # get some initial header info from the first file...
+   fileProcess.GetHeaderInfo()
+   
+   timeID = 0  # codes expect time instances to start from 0
    while (timeID < ntime): 
       try: # try to update the FileList and convert to complex format
          FileList = fileProcess.getFileList(timeID)
