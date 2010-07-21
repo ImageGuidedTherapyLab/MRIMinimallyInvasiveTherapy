@@ -228,6 +228,16 @@ void WriteRawDataAndHeader( GetPot  &cmdLine,
     {
     std::cout << "Exception thrown" << excp << std::endl; abort();
     }
+  // write magnitude mha file for initial time instance
+  if (timeid == 0)
+    {
+      WriterType::Pointer   mhaWriter = WriterType::New();
+      std::ostringstream mhaFile ;
+      mhaFile << fileBase << "Magnitude.mha";
+      mhaWriter->SetInput( magnFilter->GetOutput() );
+      mhaWriter->SetFileName( mhaFile.str() );
+      mhaWriter->Update();
+    }
 
   return;
 }

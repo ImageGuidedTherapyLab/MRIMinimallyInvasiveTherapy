@@ -85,7 +85,7 @@ class AcquisitionBaseClass:
        self.deltat = numPhaseEncodesIdkey  * repetitionTime 
     HeaderIni = ConfigParser.ConfigParser()
     inifile = open("%s/Processed/s%d/imageHeader.ini" % \
-                                             (self.ExamPath,self.dirID) , "w") 
+                                             (self.ExamPath,self.dirID) , "w")
     HeaderIni.add_section("rawdata")
     HeaderIni.set("rawdata" ,"deltat"  ,"%f" % self.deltat  )
     HeaderIni.set("rawdata" ,"imagfreq","%f" % self.imagFreq)
@@ -214,18 +214,19 @@ if __name__ == "__main__":
    ntime  = fileProcess.iniFile.getint("mrti","ntime")
 
    # make new directory
-   os.system('mkdir -p Processed/s%d' % (fileProcess.dirID) )
+   os.system('mkdir -p %s/Processed/s%d' % (fileProcess.ExamPath,fileProcess.dirID) )
    
    # get some initial header info from the first file...
    fileProcess.GetHeaderInfo()
    
    timeID = 0  # codes expect time instances to start from 0
-   while (timeID < ntime): 
+   while (timeID <= ntime): 
       try: # try to update the FileList and convert to complex format
          FileList = fileProcess.getFileList(timeID)
          # write the files
-         os.system( "%s %s --output Processed/s%d/image -timeid %d" % ( 
-                fileProcess.DicomToComplex , FileList, fileProcess.dirID, timeID ) ) 
+         os.system( "%s %s --output %s/Processed/s%d/image -timeid %d" % ( 
+                fileProcess.DicomToComplex , FileList, fileProcess.ExamPath, 
+                fileProcess.dirID, timeID ) ) 
          # update the timeID
          timeID = timeID + 1 
       # IOError should be thrown if files not found
