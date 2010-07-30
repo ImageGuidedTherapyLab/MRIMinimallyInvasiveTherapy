@@ -19,7 +19,7 @@ def getParameterList(configFile,section,option):
      return [None]
 
 
-def setuplitt(config):
+def setuplitt(config,BaseOptions):
    print """param_study:
      default setup, may vary the intial guess of parameters 
      into several batch jobs 
@@ -328,7 +328,7 @@ def setuplitt(config):
       cntrlfile.set("method",     "pde"        ,          pde          )
       cntrlfile.set("probe" ,     "domain"     ,        probeDomain    )
       cntrlfile.set("initial_condition","probe_init",    probeInit     )
-      joblist.append( [namejob, numproc, " ", cntrlfile, method]   )
+      joblist.append( [namejob, numproc, BaseOptions, " ", cntrlfile, method]   )
    #close script
    fcnvalfile.close; fcnvalfile.flush()
    #make executable
@@ -336,10 +336,9 @@ def setuplitt(config):
 
    return joblist
 
-def setupkalman(iniFile):
+def setupkalman(iniFile,BaseOptions,DirId):
 
-   # get jod identification
-   jobid       = iniFile.get( "compexec" , "jobid" ) 
+   jobid       = iniFile.get( "compexec" , "jobid" )
 
    # get a possible list of nzero to iterate on
    try: # never use the first image of the raw dicom data (RJS)
@@ -351,10 +350,12 @@ def setupkalman(iniFile):
    ntimeList  = map(int,iniFile.get("mrti","ntime").split(Delimiter))
 
    # get model parameters
-   bodyTemp = iniFile.getfloat("initial_condition","u_init")
    x_0 = iniFile.getfloat("probe","x_0")
    y_0 = iniFile.getfloat("probe","y_0")
-   z_0 = iniFile.getfloat("probe","z_0")
+   try: 
+     z_0 = iniFile.getfloat("probe","z_0")
+   except ConfigParser.NoOptionError: 
+     z_0 = None # 2D
    listk_0  = map(float,iniFile.get("thermal_conductivity","k_0_healthy").split(Delimiter))
    listw_0  = map(float,iniFile.get("perfusion","w_0_healthy").split(Delimiter))
    
@@ -385,34 +386,28 @@ def setupkalman(iniFile):
 
    # variations in solution methods
    try:
-     linalgList = map(int,iniFile.get("kalman","method").split(Delimiter))
-   except ConfigParser.NoOptionError: 
-     linalgList = [None]
-   try:
      solverList = iniFile.get("compexec","solver").split(Delimiter)
    except ConfigParser.NoOptionError: 
      solverList = [None]
    
    # create list of command line params
-   cmdLineParams =[ (nzero,ntime,meascov,statecov,modelcov,roi,linalg,solver) 
+   cmdLineParams =[ (nzero,ntime,meascov,statecov,modelcov,roi,solver) 
                     for nzero     in   nzeroList
                     for ntime     in   ntimeList
                     for meascov   in   meascovList
                     for statecov  in   statecovList
                     for modelcov  in   modelcovList
                     for roi       in   roiList
-                    for linalg    in   linalgList
                     for solver    in   solverList
                   ]
    listcmdLine=[]
-   for (nzero,ntime,meascov,statecov,modelcov,roi,linalg,solver)  in cmdLineParams:
-      cmdLineOpt  = "-ntime %d -X_0 %f -Y_0 %f -Z_0 %f " %  (ntime,x_0,y_0,z_0)
-      cmdLineOpt= cmdLineOpt  + "-bodytemp %f " % bodyTemp
+   for (nzero,ntime,meascov,statecov,modelcov,roi,solver)  in cmdLineParams:
+      cmdLineOpt  = "-ntime %d -X_0 %f -Y_0 %f " %  (ntime,x_0,y_0)
+      if (z_0      != None): cmdLineOpt= cmdLineOpt + "-Z_0 %f "      % z_0
       if (nzero    != None): cmdLineOpt= cmdLineOpt + "-nzero %d "    % nzero
       if (meascov  != None): cmdLineOpt= cmdLineOpt + "-meascov %f  " % meascov
       if (statecov != None): cmdLineOpt= cmdLineOpt + "-statecov %f " % statecov
       if (modelcov != None): cmdLineOpt= cmdLineOpt + "-modelcov %f " % modelcov
-      if (linalg   != None): cmdLineOpt= cmdLineOpt + "-method %d "   % linalg
       if (solver   != None): cmdLineOpt= cmdLineOpt + "-solver %s "   % solver
       if (roi      != None): 
          cmdLineOpt  = cmdLineOpt  + " -ix %d -nx %d -iy %d -ny %d " % \
@@ -420,23 +415,26 @@ def setupkalman(iniFile):
       listcmdLine.append( cmdLineOpt  )
 
    # variations in execution options
-   listmethod  = iniFile.get("compexec","method").split(Delimiter)
+   listqoimethod  = iniFile.get("method","qoi").split(Delimiter)
    listnumproc = map(int,iniFile.get("compexec","numproc").split(Delimiter))
 
    paramlist =[ (numproc,cmdLine_options,method) 
                     for numproc          in listnumproc 
                     for cmdLine_options  in listcmdLine 
-                    for method           in listmethod 
+                    for method           in listqoimethod 
               ]
    id = 0 
    joblist=[]
    for (numproc,cmdLine_options,method) in paramlist:
-      namejob= "%s%02d" % (jobid,id)
+      namejob= "s%s%02d" % (DirId,id)
       # create directories
       utilities.create_directories(jobid,namejob)
       # add jobid to command line
       cmdLine_options = cmdLine_options + "-jobid %02d " % id
-      joblist.append( [namejob, numproc, cmdLine_options, iniFile, method]   )
+      cntrlfile = copy.deepcopy(iniFile) 
+      cntrlfile.set("method",  "qoi"  ,   method  )
+      joblist.append( [namejob, numproc, BaseOptions, 
+                       cmdLine_options, cntrlfile , ""]   )
       # setup power data
       timePowerList = map(utilities.ExtractListData,  
                           iniFile.get("compexec","powerdata").split("@"))

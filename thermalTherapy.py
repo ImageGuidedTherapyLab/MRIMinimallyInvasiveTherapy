@@ -28,43 +28,36 @@ if(Executable == "image"):
 
   #get input/output parameters
   ExamPath = iniFile.get(   "mrti" ,"exampath")
-  DirId    = iniFile.getint("mrti" ,"dirid")
+  listDirId= map(int,iniFile.get("mrti","dirid").split(";"))
   OutputDir= "mrivis"
   #noise estimate
   magIx    = iniFile.getint("kalman" ,"magix")
   magIy    = iniFile.getint("kalman" ,"magiy")
 
-  #get the required header information
-  HeaderIni = ConfigParser.ConfigParser()
-  HeaderIni.readfp( open("%s/Processed/s%d/imageHeader.ini" % \
-                                                  (ExamPath,DirId) , "r") )
-  deltat    = HeaderIni.getfloat("rawdata" ,"deltat")
-  imagfreq  = HeaderIni.getfloat("rawdata" ,"imagfreq")
-  echotime  = HeaderIni.getfloat("rawdata" ,"echotime")
-  necho     = HeaderIni.getint(  "rawdata" ,"necho"   )
+  JOBS=[]
+  for DirId  in listDirId: 
+    # runtime options
+    BaseOptions = " %s/Processed %d %s %s -magIx %d -magIy %d " % \
+                 (ExamPath,DirId,OutputDir,runtime_options,
+                  magIx,magIy)
 
-  # constant runtime options
-  base_options = " %s/Processed %d %s %s -magIx %d -magIy %d -necho %d -deltat %f -echotime %f -imagfreq %f" % \
-               (ExamPath,DirId,OutputDir,runtime_options,
-                magIx,magIy,necho,deltat,echotime,imagfreq)
-
-  #build list of jobs to run
-  JOBS=jobsetup.setupkalman(iniFile) 
+    #build list of jobs to run
+    JOBS = JOBS + jobsetup.setupkalman(iniFile,BaseOptions,DirId) 
 
 elif(Executable == "thermalTherapy" or Executable == "dddas"):
 
-  #build list of jobs to run
-  JOBS=jobsetup.setuplitt(iniFile) 
-
   # constant runtime options
-  base_options = runtime_options
+  BaseOptions = runtime_options
+
+  #build list of jobs to run
+  JOBS=jobsetup.setuplitt(iniFile,BaseOptions) 
 
 else:
   raise ValueError("unknown executable %s " % Executable )
 
 # loop over the job in the list JOBS and run the code for each one
 CODEEXEC=[] 
-for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
+for (namejob,numproc,base_options,param_options,cntrlfile,method) in JOBS:
    # code execution on mda cluster
    if(comphost.split(".")[0] == "cn285" 
                     or 
@@ -126,7 +119,7 @@ for (namejob,numproc,param_options,cntrlfile,method) in JOBS:
         execcode="cd %s/%s/%s; mpirun -n %d $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s" % (workdir,jobid,namejob,numproc,
                         Executable,base_options,param_options)
       else:
-        execcode="cd %s/%s/%s; $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD %s %s > log.txt" % (workdir,jobid,namejob,Executable,base_options,param_options)
+        execcode="cd %s/%s/%s; $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD %s %s " % (workdir,jobid,namejob,Executable,base_options,param_options)
    # write control file with additional parameters
    inifile=open("%s/%s/files/control.ini" % (jobid,namejob) ,"w")
    cntrlfile.set("compexec","execcode",execcode)
