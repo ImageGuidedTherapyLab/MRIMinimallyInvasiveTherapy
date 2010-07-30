@@ -56,6 +56,7 @@ else:
   raise ValueError("unknown executable %s " % Executable )
 
 # loop over the job in the list JOBS and run the code for each one
+Executable  = "dddas"
 CODEEXEC=[] 
 for (namejob,numproc,base_options,param_options,cntrlfile,method) in JOBS:
    # code execution on mda cluster

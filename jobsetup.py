@@ -344,18 +344,12 @@ def setupkalman(iniFile,BaseOptions,DirId):
    try: # never use the first image of the raw dicom data (RJS)
      nzeroList  = map(int,iniFile.get("mrti","nzero").split(Delimiter))
    except ConfigParser.NoOptionError: 
-     nzeroList  = [None]
+     nzeroList  = [0]
 
    # get a possible list of ntime to iterate on
    ntimeList  = map(int,iniFile.get("mrti","ntime").split(Delimiter))
 
    # get model parameters
-   x_0 = iniFile.getfloat("probe","x_0")
-   y_0 = iniFile.getfloat("probe","y_0")
-   try: 
-     z_0 = iniFile.getfloat("probe","z_0")
-   except ConfigParser.NoOptionError: 
-     z_0 = None # 2D
    listk_0  = map(float,iniFile.get("thermal_conductivity","k_0_healthy").split(Delimiter))
    listw_0  = map(float,iniFile.get("perfusion","w_0_healthy").split(Delimiter))
    
@@ -391,9 +385,7 @@ def setupkalman(iniFile,BaseOptions,DirId):
      solverList = [None]
    
    # create list of command line params
-   cmdLineParams =[ (nzero,ntime,meascov,statecov,modelcov,roi,solver) 
-                    for nzero     in   nzeroList
-                    for ntime     in   ntimeList
+   cmdLineParams =[ (meascov,statecov,modelcov,roi,solver) 
                     for meascov   in   meascovList
                     for statecov  in   statecovList
                     for modelcov  in   modelcovList
@@ -401,10 +393,8 @@ def setupkalman(iniFile,BaseOptions,DirId):
                     for solver    in   solverList
                   ]
    listcmdLine=[]
-   for (nzero,ntime,meascov,statecov,modelcov,roi,solver)  in cmdLineParams:
-      cmdLineOpt  = "-ntime %d -X_0 %f -Y_0 %f " %  (ntime,x_0,y_0)
-      if (z_0      != None): cmdLineOpt= cmdLineOpt + "-Z_0 %f "      % z_0
-      if (nzero    != None): cmdLineOpt= cmdLineOpt + "-nzero %d "    % nzero
+   for (meascov,statecov,modelcov,roi,solver)  in cmdLineParams:
+      cmdLineOpt  = " " 
       if (meascov  != None): cmdLineOpt= cmdLineOpt + "-meascov %f  " % meascov
       if (statecov != None): cmdLineOpt= cmdLineOpt + "-statecov %f " % statecov
       if (modelcov != None): cmdLineOpt= cmdLineOpt + "-modelcov %f " % modelcov
@@ -418,29 +408,35 @@ def setupkalman(iniFile,BaseOptions,DirId):
    listqoimethod  = iniFile.get("method","qoi").split(Delimiter)
    listnumproc = map(int,iniFile.get("compexec","numproc").split(Delimiter))
 
-   paramlist =[ (numproc,cmdLine_options,method) 
+   paramlist =[ (nzero,ntime,numproc,cmdLine_options,method) 
+                    for nzero            in nzeroList
+                    for ntime            in ntimeList
                     for numproc          in listnumproc 
                     for cmdLine_options  in listcmdLine 
                     for method           in listqoimethod 
               ]
    id = 0 
    joblist=[]
-   for (numproc,cmdLine_options,method) in paramlist:
+   for (nzero,ntime,numproc,cmdLine_options,method) in paramlist:
       namejob= "s%s%02d" % (DirId,id)
       # create directories
       utilities.create_directories(jobid,namejob)
       # add jobid to command line
       cmdLine_options = cmdLine_options + "-jobid %02d " % id
       cntrlfile = copy.deepcopy(iniFile) 
-      cntrlfile.set("method",  "qoi"  ,   method  )
-      joblist.append( [namejob, numproc, BaseOptions, 
-                       cmdLine_options, cntrlfile , ""]   )
+      cntrlfile.set("method",  "qoi"  ,   method )
+      cntrlfile.set("mrti",  "nzero"  ,   nzero  )
+      cntrlfile.set("mrti",  "ntime"  ,   ntime  )
       # setup power data
       timePowerList = map(utilities.ExtractListData,  
                           iniFile.get("compexec","powerdata").split("@"))
+      cntrlfile.remove_option("compexec","powerdata") # clean up
       MRTI_ntime  = iniFile.getint( "mrti"  ,"ntime"     )
       utilities.write_power_file(MRTI_ntime ,timePowerList,
                                    "%s/%s/files/power.ini" % (jobid,namejob)) 
+      # 
+      joblist.append( [namejob, numproc, BaseOptions, 
+                       cmdLine_options, cntrlfile , ""]   )
       id = id + 1 
 
    # don't run too many
