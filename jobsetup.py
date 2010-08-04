@@ -427,6 +427,7 @@ def setupkalman(iniFile,BaseOptions,DirId):
       cntrlfile.set("method",  "qoi"  ,   method )
       cntrlfile.set("mrti",  "nzero"  ,   nzero  )
       cntrlfile.set("mrti",  "ntime"  ,   ntime  )
+      cntrlfile.set("mrti",  "dirid"  ,   DirId  )
       # setup power data
       timePowerList = map(utilities.ExtractListData,  
                           iniFile.get("compexec","powerdata").split("@"))
