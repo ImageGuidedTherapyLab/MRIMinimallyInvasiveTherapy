@@ -3,6 +3,8 @@ import os
 import utilities
 import jobsetup
 import ConfigParser
+import time
+import subprocess
 #the jobid is passed in from the command line
 controlfile = sys.argv[1]
 
@@ -136,5 +138,31 @@ print "code execution method: %s \n" % execMETH
 utilities.pause_until_ready()
 
 #run the code
-os.system(execMETH)
-
+numlocalProc = 12 
+cmd = CODEEXEC.pop(0)
+print "running " , cmd
+process = [ subprocess.Popen( CODEEXEC.pop(0),shell=True) ]
+while ( len(CODEEXEC) > 0 and len(process) > 0 ):
+    # only run numlocalProc at a time
+    if (len(process) > numlocalProc):
+      raise RuntimeError("\n\n running too many jobs at a time??")
+    elif (len(process) == numlocalProc):
+      print len(CODEEXEC), " jobs remaining..."
+      time.sleep(30) # pause wait for jobs to finish
+    elif( len(CODEEXEC) > 0 ):
+      cmd = CODEEXEC.pop(0)
+      print "running " , cmd
+      process.append( subprocess.Popen(cmd,shell=True) )
+    if( len(process) > 0 ):
+      runningJob = process.pop(0)
+      if ( runningJob.poll() == None ):
+        # job not done put it back in the list
+        # not that we pop from the front of the list and pushback at the 
+        # end to cycle through
+        print " pid ",runningJob.pid, " still running"
+        process.append( runningJob )
+      elif ( runningJob.poll() == 0 ):
+        pass # job is done 
+      else:
+        print "job exiting with ", runningJob.poll() 
+        raise RuntimeError("\n\n unknown exit code ")

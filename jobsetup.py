@@ -380,25 +380,25 @@ def setupkalman(iniFile,BaseOptions,DirId):
 
    # variations in solution methods
    try:
-     solverList = iniFile.get("compexec","solver").split(Delimiter)
+     spreadList = map(int,iniFile.get("compexec","maxspread").split(Delimiter))
    except ConfigParser.NoOptionError: 
-     solverList = [None]
+     spreadList = [None]
    
    # create list of command line params
-   cmdLineParams =[ (meascov,statecov,modelcov,roi,solver) 
+   cmdLineParams =[ (meascov,statecov,modelcov,roi,spread) 
                     for meascov   in   meascovList
                     for statecov  in   statecovList
                     for modelcov  in   modelcovList
                     for roi       in   roiList
-                    for solver    in   solverList
+                    for spread    in   spreadList
                   ]
    listcmdLine=[]
-   for (meascov,statecov,modelcov,roi,solver)  in cmdLineParams:
+   for (meascov,statecov,modelcov,roi,spread)  in cmdLineParams:
       cmdLineOpt  = " " 
       if (meascov  != None): cmdLineOpt= cmdLineOpt + "-meascov %f  " % meascov
       if (statecov != None): cmdLineOpt= cmdLineOpt + "-statecov %f " % statecov
       if (modelcov != None): cmdLineOpt= cmdLineOpt + "-modelcov %f " % modelcov
-      if (solver   != None): cmdLineOpt= cmdLineOpt + "-solver %s "   % solver
+      if (spread   != None): cmdLineOpt= cmdLineOpt + "-maxspread %d " % spread
       if (roi      != None): 
          cmdLineOpt  = cmdLineOpt  + " -ix %d -nx %d -iy %d -ny %d " % \
                                        (roi[0],roi[1],roi[2],roi[3])
