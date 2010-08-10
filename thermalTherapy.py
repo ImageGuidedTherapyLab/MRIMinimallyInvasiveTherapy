@@ -141,7 +141,7 @@ utilities.pause_until_ready()
 numlocalProc = 12 
 cmd = CODEEXEC.pop(0)
 print "running " , cmd
-process = [ subprocess.Popen( CODEEXEC.pop(0),shell=True) ]
+process = [ subprocess.Popen( cmd,shell=True) ]
 while ( len(CODEEXEC) > 0 and len(process) > 0 ):
     # only run numlocalProc at a time
     if (len(process) > numlocalProc):
