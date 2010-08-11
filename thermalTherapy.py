@@ -139,10 +139,8 @@ utilities.pause_until_ready()
 
 #run the code
 numlocalProc = 12 
-cmd = CODEEXEC.pop(0)
-print "running " , cmd
-process = [ subprocess.Popen( cmd,shell=True) ]
-while ( len(CODEEXEC) > 0 and len(process) > 0 ):
+process = []
+while ( len(CODEEXEC) > 0 or len(process) > 0 ):
     # only run numlocalProc at a time
     if (len(process) > numlocalProc):
       raise RuntimeError("\n\n running too many jobs at a time??")
