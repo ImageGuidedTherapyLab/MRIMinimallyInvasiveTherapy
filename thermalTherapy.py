@@ -137,6 +137,8 @@ print "code execution method: %s \n" % execMETH
 # sit idle until user inputs ready to continue
 utilities.pause_until_ready()
 
+# create an error log file
+errorFile=open("%s/error.log" %(jobid) ,"w")
 #run the code
 numlocalProc = 12 
 process = []
@@ -150,17 +152,19 @@ while ( len(CODEEXEC) > 0 or len(process) > 0 ):
     elif( len(CODEEXEC) > 0 ):
       cmd = CODEEXEC.pop(0)
       print "running " , cmd
-      process.append( subprocess.Popen(cmd,shell=True) )
+      process.append( [subprocess.Popen(cmd,shell=True),cmd] )
     if( len(process) > 0 ):
       runningJob = process.pop(0)
-      if ( runningJob.poll() == None ):
+      if ( runningJob[0].poll() == None ):
         # job not done put it back in the list
         # not that we pop from the front of the list and pushback at the 
         # end to cycle through
-        print " pid ",runningJob.pid, " still running"
+        print " pid ",runningJob[0].pid, " still running"
         process.append( runningJob )
-      elif ( runningJob.poll() == 0 ):
+      elif ( runningJob[0].poll() == 0 ):
         pass # job is done 
       else:
-        print "job exiting with ", runningJob.poll() 
-        raise RuntimeError("\n\n unknown exit code ")
+        print "job exiting with ", runningJob[0].poll() 
+        errorFile.write("error in  %s   \n" % runningJob[1] )
+        #raise RuntimeError("\n\n unknown exit code ")
+errorFile.close; errorFile.flush() 
