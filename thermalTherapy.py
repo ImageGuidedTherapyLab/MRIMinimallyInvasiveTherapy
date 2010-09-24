@@ -36,7 +36,7 @@ if(Executable == "image"):
   magIx    = iniFile.getint("kalman" ,"magix")
   magIy    = iniFile.getint("kalman" ,"magiy")
 
-  JOBS=[]
+  unsortedJOBS=[]
   for DirId  in listDirId: 
     # runtime options
     BaseOptions = " %s/Processed %d %s %s -magIx %d -magIy %d " % \
@@ -44,7 +44,16 @@ if(Executable == "image"):
                   magIx,magIy)
 
     #build list of jobs to run
-    JOBS = JOBS + jobsetup.setupkalman(iniFile,BaseOptions,DirId) 
+    unsortedJOBS = unsortedJOBS + jobsetup.setupkalman(iniFile,BaseOptions,DirId) 
+  # hack resort by spread 
+  # put faster jobs first
+  JOBS= []
+  for job in  unsortedJOBS: 
+      if( int(job[0][len(job[0])-2:])%3 == 0) : 
+        JOBS.insert(0,job) # insert at front
+      else:
+        JOBS.append(job) # insert at back
+  print JOBS
 
 elif(Executable == "thermalTherapy" or Executable == "dddas"):
 
