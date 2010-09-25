@@ -53,7 +53,7 @@ if(Executable == "image"):
         JOBS.insert(0,job) # insert at front
       else:
         JOBS.append(job) # insert at back
-  print JOBS
+  #print JOBS
 
 elif(Executable == "thermalTherapy" or Executable == "dddas"):
 
