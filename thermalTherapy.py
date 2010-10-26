@@ -86,9 +86,8 @@ for (namejob,numproc,base_options,param_options,cntrlfile,method) in JOBS:
       qsubfile.write("#$ -cwd                  \n"           )
       qsubfile.write("#$ -S /bin/bash          \n"           )
       qsubfile.write("#$ -v LD_LIBRARY_PATH,PATH,WORK,COMPILER\n")
-      qsubfile.write("#$ -v MPI_VERSION,METHOD=%s \n" % method)
-      qsubfile.write("mpirun -np $NSLOTS -machinefile $TMP/machines $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s\n" % (Executable,base_options, param_options))
-      qsubfile.write("pkill -9 dddas \n")
+      qsubfile.write("#$ -v MPI_VERSION,METHOD \n" )
+      qsubfile.write("mpirun_rsh -np $NSLOTS -hostfile $TMP/machines $WORK/exec/%s_$COMPILER-$MPI_VERSION-cxx-$METHOD  %s %s\n" % (Executable,base_options, param_options))
       # ensure entire file written before continuing
       qsubfile.close; qsubfile.flush() 
       execcode="cd %s/%s/%s ; qsub %s.qsub  " %  \
