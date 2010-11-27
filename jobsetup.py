@@ -217,17 +217,16 @@ def setuplitt(config,BaseOptions):
    utilities.verify_job_submission(len(paramlist),40)
 
    #create batch job list
-   id = 0 
    #create script to process the optimization iteration function value outputs
    fcnvalfile=open("%s/printvalue.txt" % jobid ,"w")
 
-   for (meshdata,powerdata,
+   for id,(meshdata,powerdata,
          k_0,k_1,k_2,k_3,w_0,w_n,w_i,w_d,w_2,w_ni,w_id,x_0,y_0,z_0,
          mu_s,mu_a,anfact,u_flux,newton_coeff, method, optimize_w_0,
          optimize_k_0, optimize_k_1, optimize_k_2, optimize_k_3, 
          optimize_pow, optimize_mu_a, optimize_mu_s, w_0_field, 
          k_0_field,k_0_ub,k_1_ub,mu_a_ub, mu_a_tumor_ub,
-          objective,time_window,hessian_window,probeDomain,probeInit,pde) in paramlist:
+          objective,time_window,hessian_window,probeDomain,probeInit,pde) in enumerate(paramlist):
       # create directory hierarchy to store files
       namejob= "%s%02d" % (jobid,id)
       # create directories
@@ -239,7 +238,6 @@ def setuplitt(config,BaseOptions):
       fcnvalfile.write("grep 'Function value' %s/out.o* | cut  -d ' ' -f3,6 | cut -d ',' -f'1 2' --output-delimiter=' ' > %s/iter.dat \n" % (namejob,namejob))
       fcnvalfile.write("grep 'Function evaluation' %s/out.o* | cut  -d ':' -f3 | awk '{print NR $0}' > %s/func.dat \n" % (namejob,namejob))
       print "creating job %s using pde %s " % (namejob,pde)
-      id = id + 1 # update counter
 
       # functions are call by reference need to deepcopy
       cntrlfile = copy.deepcopy(config) 
@@ -415,9 +413,8 @@ def setupkalman(iniFile,BaseOptions,DirId):
                     for cmdLine_options  in listcmdLine 
                     for method           in listqoimethod 
               ]
-   id = 0 
    joblist=[]
-   for (nzero,ntime,numproc,cmdLine_options,method) in paramlist:
+   for id,(nzero,ntime,numproc,cmdLine_options,method) in enumerate(paramlist):
       namejob= "s%s%02d" % (DirId,id)
       # create directories
       utilities.create_directories(jobid,namejob)
@@ -438,7 +435,6 @@ def setupkalman(iniFile,BaseOptions,DirId):
       # 
       joblist.append( [namejob, numproc, BaseOptions, 
                        cmdLine_options, cntrlfile , ""]   )
-      id = id + 1 
 
    # don't run too many
    utilities.verify_job_submission(len(joblist),40)
