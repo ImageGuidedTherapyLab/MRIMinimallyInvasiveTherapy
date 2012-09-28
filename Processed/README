@@ -1,0 +1,9 @@
+ini files contain directory information for recreating tmaps
+
+
+generate tmaps:
+vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/060626_BrainDog1_Treat/e227125/s227777 --nstep=120
+vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/061113_BrainDog2_Treat/e351850/s353172
+vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/070205_BrainDog3_Treat/e126515/s128475
+vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/070507_Braindog4_Treat/p348544/e349230/s351542
+

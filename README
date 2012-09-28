@@ -1,0 +1,19 @@
+python script for generating CPD tmaps 
+
+need numpy installed and python bindings for vtk
+
+example usage:
+
+moonen$ vglrun python cpd.py --datadir=/full/path/to/your/directory
+
+moonen$ vglrun python cpd.py
+using vtk version 5.6.1
+Usage: scrb3MR3T.py [options]
+
+Options:
+  -h, --help     show this help message and exit
+  --datadir=DIR  full path to data directory
+  --necho=INT    # of echos, will only use the first one
+  --nstep=INT    # of expected time steps
+  -q, --quiet    don't print status messages to stdout
+{'datadir': None, 'necho': 1, 'nstep': 100, 'verbose': True}
