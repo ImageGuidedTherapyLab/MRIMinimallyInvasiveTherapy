@@ -37,21 +37,21 @@ class RealTimeDicomFileRead:
     spacing_mm.append(headerData.SpacingBetweenSlices) 
     origin_mm  = headerData.ImagePositionPatient
     #convert to meter
-    self.spacing = [ 0.001 * dXi for dXi in spacing_mm  ]
-    self.origin  = [ 0.001 * Xi for Xi in origin_mm   ]
+    self.spacing = [ 0.001 * float(dXi) for dXi in spacing_mm  ]
+    self.origin  = [ 0.001 * float(Xi) for Xi in origin_mm   ]
     print self.dimensions, self.spacing, self.origin
     
     # FIXME should be negative but phase messed up somewhere
     alpha = +0.0097   
     # FIXME need to read in multiple echo times to process MFGRE should 
     # FIXME still be fine for 1st echo
-    echoTime = headerData.EchoTime
-    imagFreq = headerData.ImagingFrequency
+    echoTime = float(headerData.EchoTime)
+    imagFreq = float(headerData.ImagingFrequency)
     # temperature map factor
     self.tmap_factor = 1.0 / (2.0 * numpy.pi * imagFreq * alpha * echoTime * 1.e-3)
 
     # should be equal and imaginary data
-    expectedNtime = headerData.ImagesinAcquisition/self.nslice/self.NumberEcho/2
+    expectedNtime = int(headerData.ImagesinAcquisition)/self.nslice/self.NumberEcho/2
     if( self.NumTimeStep != expectedNtime ):
        print headerData.ImagesinAcquisition,self.nslice,self.NumberEcho
        raise RuntimeError("expecting %d total time points" % expectedNtime )
@@ -93,28 +93,29 @@ class RealTimeDicomFileRead:
               raise RuntimeError("slice integer %d < 0 " % sliceIntID )
             rawdataNumber = dcmimage[0x0019,0x10a2].value
             numEchoes = dcmimage[0x0019,0x107e].value
+            #check if default ntime not set
+            if (self.NumTimeStep == None):
+              try:
+                self.NumTimeStep = dcmimage.NumberofTemporalPositions
+              except AttributeError:
+                raise RuntimeError("NumberofTemporalPositions Not found try setting directly\n\t\t--nstep=...")
+            #compute timeIntID
             if ( numEchoes == 1 ) : 
                # for 1 echo assume CPD
                numberSlice = dcmimage[0x0021,0x104f].value
                timeIntID = int(dcmimage.InstanceNumber - 1)/int(numberSlice*2)
             elif( numEchoes > 1 ) :
                # for multiple echo assume MFGRE
-               tmptimeID = dcmimage.InstanceNumber - 1 - dcmimage.NumberofTemporalPositions * numEchoes * sliceIntID * 2
+               tmptimeID = dcmimage.InstanceNumber - 1 - self.NumTimeStep * numEchoes * sliceIntID * 2
                timeIntID = tmptimeID /numEchoes / 2
             else :
                raise RuntimeError("unknown sequence ")
-            #check in default ntime not set
-            if (self.NumTimeStep == None):
-              try:
-                self.NumTimeStep = dcmimage.NumberofTemporalPositions
-              except AttributeError:
-                raise RuntimeError("NumberofTemporalPositions Not found try setting directly\n\t\t--nstep=...")
-              #error check
-              if( timeIntID < 0  or timeIntID >= self.NumTimeStep ):
-                 print "numEchoes ", numEchoes 
-                 print "InstanceNumber ", dcmimage.InstanceNumber, "NumberofTemporalPositions", self.NumTimeStep, "sliceIntID" ,sliceIntID 
-                 print "TriggerTime", dcmimage.TriggerTime, "deltat", deltat, "number slice ", dcmimage[0x0021,0x104f].value
-                 raise RuntimeError("time error: %d not \\notin [0,%d) " % (timeIntID,self.NumTimeStep) )
+            #error check
+            if( timeIntID < 0  or timeIntID >= self.NumTimeStep ):
+               print "numEchoes ", numEchoes 
+               print "InstanceNumber ", dcmimage.InstanceNumber, "NumberofTemporalPositions", self.NumTimeStep, "sliceIntID" ,sliceIntID 
+               print "TriggerTime", dcmimage.TriggerTime, "deltat", deltat, "number slice ", dcmimage[0x0021,0x104f].value
+               raise RuntimeError("time error: %d not \\notin [0,%d) " % (timeIntID,self.NumTimeStep) )
             datatype = int(dcmimage[0x0043,0x102f].value)
             #error check
             if ( datatype == 2 or datatype == 3 ) : 
@@ -139,7 +140,7 @@ class RealTimeDicomFileRead:
         print "read in ", len(self.FilesReadIn), "files"
 
   # return image data from raw file names
-  def GetRawDICOMData(self,idtime):
+  def GetRawDICOMData(self,idtime,outDirectoryID):
     
     # loop until files are ready to be read in
     realImageFilenames = []
@@ -228,7 +229,7 @@ class RealTimeDicomFileRead:
     for idecho in range(1,self.NumberEcho+1):
        localKey = self.keyTemplate % ( idtime,idecho,0,2 )
        echoTimes.append(self.DicomDataDictionary[localKey][1])
-    scipyio.savemat("rawdata.%04d.mat"%(idtime), {'dimensions':dim,'echoTimes':echoTimes,'real':real_array,'imag':imag_array})
+    scipyio.savemat("Processed/%s/rawdata.%04d.mat"%(outDirectoryID,idtime), {'dimensions':dim,'echoTimes':echoTimes,'real':real_array,'imag':imag_array})
   
     # end GetRawDICOMData
     return (real_array,imag_array)
@@ -332,12 +333,12 @@ if (options.datadir != None):
   imageViewer = vtk.vtkImageViewer2()
 
   # loop and compute tmap
-  vtkPreviousImage = fileHelper.GetRawDICOMData( 0 )
+  vtkPreviousImage = fileHelper.GetRawDICOMData( 0, outputDirID )
   # do not finish until all files processed
   for idfile in range(fileHelper.NumTimeStep): 
     try:
       # get current data set
-      vtkCurrent_Image = fileHelper.GetRawDICOMData( idfile )
+      vtkCurrent_Image = fileHelper.GetRawDICOMData( idfile, outputDirID )
   
       #  - \delta \theta = atan( conj(S^i) * S^{i+1} ) 
       #                  = atan2(Im,Re) 
@@ -423,7 +424,7 @@ if (options.datadir != None):
       #reset reference phase
       print "reseting base phase image at time ", idfile
       time.sleep(1)
-      vtkPreviousImage = fileHelper.GetRawDICOMData( idfile )
+      vtkPreviousImage = fileHelper.GetRawDICOMData( idfile, outputDirID )
       absTemp = numpy.zeros(fileHelper.FullSize,
                             dtype=numpy.float32) + options.baseline
 

@@ -7,3 +7,22 @@ vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/061113_BrainDog2
 vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/070205_BrainDog3_Treat/e126515/s128475
 vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/070507_Braindog4_Treat/p348544/e349230/s351542
 
+
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s73296   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s73617   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s73938   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s74259   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s74580   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s74901   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s75222   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s75543   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s75864   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s76185   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s76506   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s76827   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s77148   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s77469   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s77790   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s78111   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s78432   --nstep=10
+vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s78753   --nstep=10
