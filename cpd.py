@@ -157,8 +157,8 @@ class RealTimeDicomFileRead:
     real_array=numpy.zeros(self.FullSize,dtype=numpy.float32)
     imag_array=numpy.zeros(self.FullSize,dtype=numpy.float32) 
 
-    ## vtkAppendReal = vtk.vtkImageAppendComponents()
-    ## vtkAppendImag = vtk.vtkImageAppendComponents()
+    vtkAppendReal = vtk.vtkImageAppendComponents()
+    vtkAppendImag = vtk.vtkImageAppendComponents()
 
     for idEchoLoc,(fileNameReal,fileNameImag) in enumerate(zip(realImageFilenames,imagImageFilenames)):
       # FIXME: index nightmare
@@ -209,20 +209,20 @@ class RealTimeDicomFileRead:
       imag_image = vtkImagData.GetOutput().GetPointData() 
       imag_array[ beginIndex: finalIndex : stepIndex ] = vtkNumPy.vtk_to_numpy(imag_image.GetArray(0)) 
   
-      ##vtkAppendReal.SetInput( idEchoLoc ,vtkRealDcmReader.GetOutput() )
-      ##vtkAppendImag.SetInput( idEchoLoc ,vtkImagDcmReader.GetOutput() )
-      ##vtkAppendReal.Update( )
-      ##vtkAppendImag.Update( )
+      vtkAppendReal.SetInput( idEchoLoc ,vtkRealDcmReader.GetOutput() )
+      vtkAppendImag.SetInput( idEchoLoc ,vtkImagDcmReader.GetOutput() )
+      vtkAppendReal.Update( )
+      vtkAppendImag.Update( )
   
-    ##vtkRealDcmWriter = vtk.vtkDataSetWriter()
-    ##vtkRealDcmWriter.SetFileName("realrawdata.%04d.vtk" % idtime )
-    ##vtkRealDcmWriter.SetInput(vtkAppendReal.GetOutput())
-    ##vtkRealDcmWriter.Update()
+    vtkRealDcmWriter = vtk.vtkDataSetWriter()
+    vtkRealDcmWriter.SetFileName("Processed/%s/realrawdata.%04d.vtk" % (outDirectoryID,idtime) )
+    vtkRealDcmWriter.SetInput(vtkAppendReal.GetOutput())
+    vtkRealDcmWriter.Update()
   
-    ##vtkImagDcmWriter = vtk.vtkDataSetWriter()
-    ##vtkImagDcmWriter.SetFileName("imagrawdata.%04d.vtk" % idtime )
-    ##vtkImagDcmWriter.SetInput(vtkAppendImag.GetOutput())
-    ##vtkImagDcmWriter.Update()
+    vtkImagDcmWriter = vtk.vtkDataSetWriter()
+    vtkImagDcmWriter.SetFileName("Processed/%s/imagrawdata.%04d.vtk" % (outDirectoryID,idtime) )
+    vtkImagDcmWriter.SetInput(vtkAppendImag.GetOutput())
+    vtkImagDcmWriter.Update()
   
     # write numpy to disk in matlab
     echoTimes = []

@@ -8,6 +8,8 @@ vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/070205_BrainDog3
 vglrun python cpd.py --datadir=/FUS4/data2/BioTex/Brain_PhaseII/070507_Braindog4_Treat/p348544/e349230/s351542
 
 
+multi FA
+
 vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s73296   --nstep=10
 vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s73617   --nstep=10
 vglrun python cpd.py --datadir=/workarea/fuentes/GPM/p72786/e72787/s73938   --nstep=10
