@@ -112,7 +112,7 @@ class RealTimeDicomFileRead:
                raise RuntimeError("unknown sequence ")
             #error check
             if( timeIntID < 0  or timeIntID >= self.NumTimeStep ):
-               print "numEchoes ", numEchoes 
+               print 'timeIntID', timeIntID ,"numEchoes ", numEchoes 
                print "InstanceNumber ", dcmimage.InstanceNumber, "NumberofTemporalPositions", self.NumTimeStep, "sliceIntID" ,sliceIntID 
                print "TriggerTime", dcmimage.TriggerTime, "deltat", deltat, "number slice ", dcmimage[0x0021,0x104f].value
                raise RuntimeError("time error: %d not \\notin [0,%d) " % (timeIntID,self.NumTimeStep) )
@@ -360,7 +360,7 @@ if (options.datadir != None):
       vtkTempWriter.Update()
   
       # write numpy to disk in matlab
-      #scipyio.savemat("temperature.%04d.mat"%(idfile), {'temp':absTemp})
+      scipyio.savemat("Processed/%s/temperature.%04d.mat"%(outputDirID,idfile), {'temp':absTemp})
   
       # update for next time step
       vtkPreviousImage = vtkCurrent_Image 
