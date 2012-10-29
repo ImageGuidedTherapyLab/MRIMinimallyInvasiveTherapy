@@ -420,6 +420,16 @@ if (options.datadir != None):
       renWin.Render()
       #iren.Start()
 
+      # save as a movie for animation
+      windowToImage = vtk.vtkWindowToImageFilter() 
+      windowToImage.SetInput(renWin)
+      windowToImage.Update()
+      jpgWriter     = vtk.vtkJPEGWriter() 
+      jpgWriter.SetFileName( "Processed/%s/temperature.%04d.jpg" % (outputDirID,idfile))
+      #jpgWriter.SetInput(extractVOI.GetOutput())
+      jpgWriter.SetInput(windowToImage.GetOutput())
+      jpgWriter.Write()
+
     except KeyboardInterrupt:
       #reset reference phase
       print "reseting base phase image at time ", idfile
@@ -427,8 +437,9 @@ if (options.datadir != None):
       vtkPreviousImage = fileHelper.GetRawDICOMData( idfile, outputDirID )
       absTemp = numpy.zeros(fileHelper.FullSize,
                             dtype=numpy.float32) + options.baseline
-
+  # save gif animations
+  print "saving animations... "
+  os.system( "convert -delay 30 -resize 80%% -loop 0 Processed/%s/temperature.*.jpg Processed/%s/temperature.gif  " % (outputDirID,outputDirID) ) 
 else:
   parser.print_help()
   print options
-
