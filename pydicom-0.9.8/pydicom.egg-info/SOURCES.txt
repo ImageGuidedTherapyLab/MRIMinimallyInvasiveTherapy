@@ -1,5 +1,8 @@
 MANIFEST.in
+PKG-INFO
+distribute-0.6.17.tar.gz
 distribute_setup.py
+setup.cfg
 setup.py
 dicom/UID.py
 dicom/_UID_dict.py
