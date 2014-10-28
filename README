@@ -26,3 +26,13 @@ wget http://pydicom.googlecode.com/files/pydicom-0.9.8.tar.gz
 
 export PYTHONPATH=/usr/g/research/fuentes/cpd/pydicom-0.9.8-install/lib/python2.6/site-packages/:$PYTHONPATH
 python setup.py install --prefix=$PWD-install
+
+setup env
+=========
+export PYTHONPATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/bin/Python/:$PYTHONPATH
+export PYTHONPATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/lib/Slicer-4.1/:$PYTHONPATH
+export PYTHONPATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/lib/Python/lib/python2.6/site-packages/:$PYTHONPATH
+export PYTHONPATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/lib/Python/lib/python2.6/:$PYTHONPATH
+export LD_LIBRARY_PATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/lib/Slicer-4.1/:$LD_LIBRARY_PATH
+
+
