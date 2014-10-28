@@ -23,6 +23,6 @@ Options:
 pydicom Install
 ===============
 wget http://pydicom.googlecode.com/files/pydicom-0.9.8.tar.gz
-tar -xvzf pydicom-0.9.8.tar.gz
 
-
+export PYTHONPATH=/usr/g/research/fuentes/cpd/pydicom-0.9.8-install/lib/python2.6/site-packages/:$PYTHONPATH
+python setup.py install --prefix=$PWD-install
