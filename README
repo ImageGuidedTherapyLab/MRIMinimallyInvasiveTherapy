@@ -19,13 +19,19 @@ Options:
   -q, --quiet    don't print status messages to stdout
 {'datadir': None, 'necho': 1, 'nstep': 100, 'verbose': True}
 
+Example Usage
+==============
+ /usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/bin/python cpd.py  --datadir=/export/home1/sdc_image_pool/images/p27/e70/s760
+
+Image Location
+==============
+ 10.115.24.111:/export/home1/sdc_image_pool/images/
 
 EPD Setup
 =========
 
-export PYTHONPATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/python2.7/site-packages:$PYTHONPATH
-export LD_LIBRARY_PATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/:/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/vtk-5.6:$LD_LIBRARY_PATH
 
+bash
 export PYTHONPATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/python2.7/site-packages
 export LD_LIBRARY_PATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/:/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/vtk-5.6
 /usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/bin/python
