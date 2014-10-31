@@ -20,19 +20,42 @@ Options:
 {'datadir': None, 'necho': 1, 'nstep': 100, 'verbose': True}
 
 
+EPD Setup
+=========
+
+export PYTHONPATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/python2.7/site-packages:$PYTHONPATH
+export LD_LIBRARY_PATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/:/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/vtk-5.6:$LD_LIBRARY_PATH
+
+export PYTHONPATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/python2.7/site-packages
+export LD_LIBRARY_PATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/:/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/vtk-5.6
+/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/bin/python
+
+
+
 pydicom Install
 ===============
 wget http://pydicom.googlecode.com/files/pydicom-0.9.8.tar.gz
 
 export PYTHONPATH=/usr/g/research/fuentes/cpd/pydicom-0.9.8-install/lib/python2.6/site-packages/:$PYTHONPATH
-python setup.py install --prefix=$PWD-install
+/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/bin/python setup.py install --prefix=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64
 
-setup env
-=========
-export PYTHONPATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/bin/Python/:$PYTHONPATH
-export PYTHONPATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/lib/Slicer-4.1/:$PYTHONPATH
-export PYTHONPATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/lib/Python/lib/python2.6/site-packages/:$PYTHONPATH
-export PYTHONPATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/lib/Python/lib/python2.6/:$PYTHONPATH
-export LD_LIBRARY_PATH=/usr/g/research/fuentes/Slicer-4.1.0-2012-07-17-linux-amd64/lib/Slicer-4.1/:$LD_LIBRARY_PATH
 
+
+
+
+
+
+
+
+
+
+vtk python Install (not used. used EPD instead)
+===============
+/usr/g/research/fuentes/cpd/cmake-3.0.2-Linux-i386/bin/ccmake
+
+mkdir -p vtk-5.8-build; cd vtk-5.8-build;/usr/g/research/fuentes/cpd/cmake-3.0.2-Linux-i386/bin/cmake -DVTK_USE_TK=OFF -DBUILD_SHARED_LIBS=ON  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DVTK_WRAP_PYTHON=ON -DVTK_USE_PARALLEL=ON -DVTK_USE_N_WAY_ARRAYS=ON -DCMAKE_INSTALL_PREFIX=/usr/g/research/fuentes/cpd/vtk-5.8-install ../VTK;make -j 6;make install
+
+vtk c++ only Install  (not used. used EPD instead)
+===============
+mkdir -p vtk-5.8-build; cd vtk-5.8-build;/usr/g/research/fuentes/cpd/cmake-3.0.2-Linux-i386/bin/cmake -DVTK_USE_TK=OFF -DBUILD_SHARED_LIBS=ON  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DVTK_USE_PARALLEL=ON -DVTK_USE_N_WAY_ARRAYS=ON -DCMAKE_INSTALL_PREFIX=/usr/g/research/fuentes/cpd/vtk-5.8-install ../VTK;make -j 6;make install
 
