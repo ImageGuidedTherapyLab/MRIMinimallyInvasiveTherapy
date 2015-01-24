@@ -136,9 +136,9 @@ class RealTimeDicomFileRead:
                  raise RuntimeError("\n\n\t unknown datatype %d : expecting real and imaginary data" % datatype)
               #error check key
               if ( keyID in self.DicomDataDictionary) : 
-                 raise RuntimeError("\n\n\t duplicate keyID %s not allowed...error parsing header" % keyID )
+                 "\n\n\t overwriting keyID %s ..." % keyID 
               self.DicomDataDictionary[keyID]=(filename,dcmimage.EchoTime)
-              print "deltat", deltat, "raw data", rawdataNumber, "key", keyID
+              print "deltat", deltat," min raw", self.MinRawDataNumber,"raw data", rawdataNumber, "key", keyID
               # not all headers have this ? 
               try:
                 print "trigger ",dcmimage.TriggerTime,"temporal ID ",dcmimage.TemporalPositionIdentifier
