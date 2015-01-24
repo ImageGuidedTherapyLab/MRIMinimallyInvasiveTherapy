@@ -10,7 +10,7 @@ import scipy.io as scipyio
 
 class RealTimeDicomFileRead:
   """ Base Class for realtime image header parsing...  """
-  def __init__(self,rootDirectory,ExpectedFileSize,DefaultNstep):
+  def __init__(self,rootDirectory,ExpectedFileSize,DefaultNstep,DefaultOffset):
     print " base class constructor called \n\n" 
     # dictionary key template = time echo slice type
     self.keyTemplate   = "%04d_%03d_%03d_%02d" 
@@ -19,6 +19,8 @@ class RealTimeDicomFileRead:
     self.DicomDataDictionary = {}
     self.FilesReadIn = set()
     self.NumTimeStep = DefaultNstep
+    self.MinRawDataNumber = 100000000
+    self.TimeOffset = DefaultOffset
 
   def GetHeaderInfo(self):
     """ get initial header info"""
@@ -54,7 +56,7 @@ class RealTimeDicomFileRead:
     expectedNtime = int(headerData.ImagesinAcquisition)/self.nslice/self.NumberEcho/2
     if( self.NumTimeStep != expectedNtime ):
        print headerData.ImagesinAcquisition,self.nslice,self.NumberEcho
-       raise RuntimeError("expecting %d total time points" % expectedNtime )
+       #raise RuntimeError("expecting %d total time points" % expectedNtime )
     # end GetHeaderInfo(self):
     return
 
@@ -73,7 +75,7 @@ class RealTimeDicomFileRead:
         print "waiting for directory %s ... " % ( self.dataDirectory) 
         time.sleep(1)
       except KeyError: 
-        print "waiting ... time %04d Echo %03d slice %03d type %02d" % (timeInstance,echo_id,slice_id,imagetype) 
+        print "waiting ... min raw %d offset %d time %04d Echo %03d slice %03d type %02d" % (self.MinRawDataNumber,self.TimeOffset  ,  timeInstance,echo_id,slice_id,imagetype) 
         time.sleep(1)
         files = set( filter(lambda x:os.path.isfile("%s/%s" % (self.dataDirectory,x) ) ,directoryList) )
         ### filestmp = filter(lambda x:os.path.isfile("%s/%s" % (self.dataDirectory,x) ) ,directoryList) 
@@ -86,7 +88,8 @@ class RealTimeDicomFileRead:
           if ( os.path.getsize( FullPathToFile ) > self.FileSize ):
             print "found", FullPathToFile
             dcmimage = dicom.read_file( FullPathToFile )
-            deltat = dcmimage[0x0019,0x105a].value/dcmimage[0x0019,0x10f2].value*1.e-6
+            #deltat = dcmimage[0x0019,0x105a].value/dcmimage[0x0019,0x10f2].value*1.e-6
+            deltat = 5.0
             sliceIntID = int(abs(round((dcmimage.SliceLocation - dcmimage[0x0019,0x1019].value)/ dcmimage.SpacingBetweenSlices)))
             if(sliceIntID < 0 ) :
               print "SliceLocation", dcmimage.SliceLocation , "spacing between slices",dcmimage.SpacingBetweenSlices, "first scan location " , dcmimage[0x0019,0x1019].value
@@ -100,6 +103,9 @@ class RealTimeDicomFileRead:
               except AttributeError:
                 raise RuntimeError("NumberofTemporalPositions Not found try setting directly\n\t\t--nstep=...")
             #compute timeIntID
+            rawdataNumber = dcmimage[0x0019,0x10a2].value
+            if( rawdataNumber < self.MinRawDataNumber ):
+                self.MinRawDataNumber = rawdataNumber
             if ( numEchoes == 1 ) : 
                # for 1 echo assume CPD
                numberSlice = dcmimage[0x0021,0x104f].value
@@ -108,14 +114,15 @@ class RealTimeDicomFileRead:
                # for multiple echo assume MFGRE
                tmptimeID = dcmimage.InstanceNumber - 1 - self.NumTimeStep * numEchoes * sliceIntID * 2
                timeIntID = tmptimeID /numEchoes / 2
+               timeIntID = rawdataNumber - self.TimeOffset
             else :
                raise RuntimeError("unknown sequence ")
             #error check
             if( timeIntID < 0  or timeIntID >= self.NumTimeStep ):
                print 'timeIntID', timeIntID ,"numEchoes ", numEchoes 
                print "InstanceNumber ", dcmimage.InstanceNumber, "NumberofTemporalPositions", self.NumTimeStep, "sliceIntID" ,sliceIntID 
-               print "TriggerTime", dcmimage.TriggerTime, "deltat", deltat, "number slice ", dcmimage[0x0021,0x104f].value
-               raise RuntimeError("time error: %d not \\notin [0,%d) " % (timeIntID,self.NumTimeStep) )
+               #print "TriggerTime", dcmimage.TriggerTime, "deltat", deltat, "number slice ", dcmimage[0x0021,0x104f].value
+               print "time error: %d not \\notin [0,%d) " % (timeIntID,self.NumTimeStep) 
             datatype = int(dcmimage[0x0043,0x102f].value)
             #error check
             if ( datatype == 2 or datatype == 3 ) : 
@@ -131,7 +138,7 @@ class RealTimeDicomFileRead:
             # not all headers have this ? 
             try:
               print "trigger ",dcmimage.TriggerTime,"temporal ID ",dcmimage.TemporalPositionIdentifier
-            except AttributeError:
+            except :
               pass
             # ensure we do not read this in again
             self.FilesReadIn.add( filename )
@@ -274,6 +281,9 @@ parser.add_option("--sliceID",
 parser.add_option("--nstep", 
                   action="store", dest="nstep", type="int", default=None,
                   help="[OPTIONAL] # of expected time steps ", metavar="INT")
+parser.add_option("--offset", 
+                  action="store", dest="offset", type="int", default=0,
+                  help="[OPTIONAL] time offset of raw data number", metavar="INT")
 parser.add_option("--baseline", 
                   action="store", dest="baseline", type="float", default=0.0,
                   help="[OPTIONAL] initial temperature ", metavar="FLOAT")
@@ -284,7 +294,7 @@ parser.add_option("-q", "--quiet",
 if (options.datadir != None):
   
   # instantiate helper class
-  fileHelper = RealTimeDicomFileRead( options.datadir, 256*256,options.nstep  )
+  fileHelper = RealTimeDicomFileRead( options.datadir, 256*256,options.nstep,options.offset  )
   outputDirID = filter(len,options.datadir.split("/")).pop()
   #os.system( "mkdir -p Processed/%s" % outputDirID )
   try:
