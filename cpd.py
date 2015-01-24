@@ -105,43 +105,47 @@ class RealTimeDicomFileRead:
             #compute timeIntID
             rawdataNumber = dcmimage[0x0019,0x10a2].value
             if( rawdataNumber < self.MinRawDataNumber ):
-                self.MinRawDataNumber = rawdataNumber
-            if ( numEchoes == 1 ) : 
-               # for 1 echo assume CPD
-               numberSlice = dcmimage[0x0021,0x104f].value
-               timeIntID = int(dcmimage.InstanceNumber - 1)/int(numberSlice*2)
-            elif( numEchoes > 1 ) :
-               # for multiple echo assume MFGRE
-               tmptimeID = dcmimage.InstanceNumber - 1 - self.NumTimeStep * numEchoes * sliceIntID * 2
-               timeIntID = tmptimeID /numEchoes / 2
-               timeIntID = rawdataNumber - self.TimeOffset
-            else :
-               raise RuntimeError("unknown sequence ")
-            #error check
-            if( timeIntID < 0  or timeIntID >= self.NumTimeStep ):
-               print 'timeIntID', timeIntID ,"numEchoes ", numEchoes 
-               print "InstanceNumber ", dcmimage.InstanceNumber, "NumberofTemporalPositions", self.NumTimeStep, "sliceIntID" ,sliceIntID 
-               #print "TriggerTime", dcmimage.TriggerTime, "deltat", deltat, "number slice ", dcmimage[0x0021,0x104f].value
-               print "time error: %d not \\notin [0,%d) " % (timeIntID,self.NumTimeStep) 
-            datatype = int(dcmimage[0x0043,0x102f].value)
-            #error check
-            if ( datatype == 2 or datatype == 3 ) : 
-              keyID = self.keyTemplate % ( timeIntID, int(dcmimage.EchoNumbers), 
-                                 sliceIntID, datatype ) 
-            else :
-               raise RuntimeError("\n\n\t unknown datatype %d : expecting real and imaginary data" % datatype)
-            #error check key
-            if ( keyID in self.DicomDataDictionary) : 
-               raise RuntimeError("\n\n\t duplicate keyID %s not allowed...error parsing header" % keyID )
-            self.DicomDataDictionary[keyID]=(filename,dcmimage.EchoTime)
-            print "deltat", deltat, "raw data", rawdataNumber, "key", keyID
-            # not all headers have this ? 
-            try:
-              print "trigger ",dcmimage.TriggerTime,"temporal ID ",dcmimage.TemporalPositionIdentifier
-            except :
-              pass
-            # ensure we do not read this in again
-            self.FilesReadIn.add( filename )
+              self.MinRawDataNumber = rawdataNumber
+              #need to start over
+              self.FilesReadIn.clear()
+            else:
+              if ( numEchoes == 1 ) : 
+                 # for 1 echo assume CPD
+                 numberSlice = dcmimage[0x0021,0x104f].value
+                 timeIntID = int(dcmimage.InstanceNumber - 1)/int(numberSlice*2)
+              elif( numEchoes > 1 ) :
+                 # for multiple echo assume MFGRE
+                 tmptimeID = dcmimage.InstanceNumber - 1 - self.NumTimeStep * numEchoes * sliceIntID * 2
+                 timeIntID = tmptimeID /numEchoes / 2
+                 timeIntID = rawdataNumber - self.TimeOffset
+                 timeIntID = rawdataNumber - self.MinRawDataNumber 
+              else :
+                 raise RuntimeError("unknown sequence ")
+              #error check
+              if( timeIntID < 0  or timeIntID >= self.NumTimeStep ):
+                 print 'timeIntID', timeIntID ,"numEchoes ", numEchoes 
+                 print "InstanceNumber ", dcmimage.InstanceNumber, "NumberofTemporalPositions", self.NumTimeStep, "sliceIntID" ,sliceIntID 
+                 #print "TriggerTime", dcmimage.TriggerTime, "deltat", deltat, "number slice ", dcmimage[0x0021,0x104f].value
+                 print "time error: %d not \\notin [0,%d) " % (timeIntID,self.NumTimeStep) 
+              datatype = int(dcmimage[0x0043,0x102f].value)
+              #error check
+              if ( datatype == 2 or datatype == 3 ) : 
+                keyID = self.keyTemplate % ( timeIntID, int(dcmimage.EchoNumbers), 
+                                   sliceIntID, datatype ) 
+              else :
+                 raise RuntimeError("\n\n\t unknown datatype %d : expecting real and imaginary data" % datatype)
+              #error check key
+              if ( keyID in self.DicomDataDictionary) : 
+                 raise RuntimeError("\n\n\t duplicate keyID %s not allowed...error parsing header" % keyID )
+              self.DicomDataDictionary[keyID]=(filename,dcmimage.EchoTime)
+              print "deltat", deltat, "raw data", rawdataNumber, "key", keyID
+              # not all headers have this ? 
+              try:
+                print "trigger ",dcmimage.TriggerTime,"temporal ID ",dcmimage.TemporalPositionIdentifier
+              except :
+                pass
+              # ensure we do not read this in again
+              self.FilesReadIn.add( filename )
           else: 
             print "filesize too small", os.path.getsize( FullPathToFile )
         print "read in ", len(self.FilesReadIn), "files"
