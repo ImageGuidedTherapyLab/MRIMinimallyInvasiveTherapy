@@ -286,7 +286,8 @@ if (options.datadir != None):
   # instantiate helper class
   fileHelper = RealTimeDicomFileRead( options.datadir, 256*256,options.nstep  )
   outputDirID = filter(len,options.datadir.split("/")).pop()
-  os.system( "mkdir -p Processed/%s" % outputDirID )
+  #os.system( "mkdir -p Processed/%s" % outputDirID )
+  os.mkdir( "Processed/%s" % outputDirID )
 
   # Get Header data
   fileHelper.GetHeaderInfo( )
