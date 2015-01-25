@@ -2,6 +2,14 @@ python script for generating CPD tmaps
 
 need numpy installed and python bindings for vtk
 
+env setup
+=========
+
+bash
+export PYTHONPATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/python2.7/site-packages
+export LD_LIBRARY_PATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/:/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/vtk-5.6
+/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/bin/python
+
 Usage 
 =====
 
@@ -23,18 +31,12 @@ Example Usage
 ==============
  /usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/bin/python cpd.py  --datadir=/export/home1/sdc_image_pool/images/p27/e70/s760
 
+ vglrun python /workarea/fuentes/FullRepo/DIP/codes/trunk/thermometry/algorithms/cpd/cpd.py --datadir=/FUS4/data2/BioTex/nsf_rfp-12-571/RWJ/archive08_26_10/08_26_10/s69296
+
+
 Image Location
 ==============
  10.115.24.111:/export/home1/sdc_image_pool/images/
-
-EPD Setup
-=========
-
-
-bash
-export PYTHONPATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/python2.7/site-packages
-export LD_LIBRARY_PATH=/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/:/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/lib/vtk-5.6
-/usr/g/research/fuentes/EPD/epd-7.3-1-rh5-x86_64/bin/python
 
 
 
