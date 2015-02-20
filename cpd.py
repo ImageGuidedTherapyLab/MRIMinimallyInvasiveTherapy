@@ -8,6 +8,9 @@ import time
 import dicom
 import scipy.io as scipyio
 
+# FIXME - hack to reduce file usage
+SetFalseToReduceFileSystemUsage  = False
+
 class RealTimeDicomFileRead:
   """ Base Class for realtime image header parsing...  """
   def __init__(self,rootDirectory,ExpectedFileSize,DefaultNstep,DefaultOffset):
@@ -224,23 +227,25 @@ class RealTimeDicomFileRead:
       vtkAppendImag.SetInput( idEchoLoc ,vtkImagDcmReader.GetOutput() )
       vtkAppendReal.Update( )
       vtkAppendImag.Update( )
+    if (SetFalseToReduceFileSystemUsage):
+      vtkRealDcmWriter = vtk.vtkDataSetWriter()
+      vtkRealDcmWriter.SetFileName("Processed/%s/realrawdata.%04d.vtk" % (outDirectoryID,idtime) )
+      vtkRealDcmWriter.SetInput(vtkAppendReal.GetOutput())
+      vtkRealDcmWriter.Update()
   
-    vtkRealDcmWriter = vtk.vtkDataSetWriter()
-    vtkRealDcmWriter.SetFileName("Processed/%s/realrawdata.%04d.vtk" % (outDirectoryID,idtime) )
-    vtkRealDcmWriter.SetInput(vtkAppendReal.GetOutput())
-    vtkRealDcmWriter.Update()
-  
-    vtkImagDcmWriter = vtk.vtkDataSetWriter()
-    vtkImagDcmWriter.SetFileName("Processed/%s/imagrawdata.%04d.vtk" % (outDirectoryID,idtime) )
-    vtkImagDcmWriter.SetInput(vtkAppendImag.GetOutput())
-    vtkImagDcmWriter.Update()
+    if (SetFalseToReduceFileSystemUsage):
+      vtkImagDcmWriter = vtk.vtkDataSetWriter()
+      vtkImagDcmWriter.SetFileName("Processed/%s/imagrawdata.%04d.vtk" % (outDirectoryID,idtime) )
+      vtkImagDcmWriter.SetInput(vtkAppendImag.GetOutput())
+      vtkImagDcmWriter.Update()
   
     # write numpy to disk in matlab
     echoTimes = []
     for idecho in range(1,self.NumberEcho+1):
        localKey = self.keyTemplate % ( idtime,idecho,0,2 )
        echoTimes.append(self.DicomDataDictionary[localKey][1])
-    scipyio.savemat("Processed/%s/rawdata.%04d.mat"%(outDirectoryID,idtime), {'dimensions':dim,'echoTimes':echoTimes,'real':real_array,'imag':imag_array})
+    if (SetFalseToReduceFileSystemUsage):
+      scipyio.savemat("Processed/%s/rawdata.%04d.mat"%(outDirectoryID,idtime), {'dimensions':dim,'echoTimes':echoTimes,'real':real_array,'imag':imag_array})
   
     # end GetRawDICOMData
     return (real_array,imag_array)
@@ -378,7 +383,8 @@ if (options.datadir != None):
       vtkTempWriter.Update()
   
       # write numpy to disk in matlab
-      scipyio.savemat("Processed/%s/temperature.%04d.mat"%(outputDirID,idfile), {'temp':absTemp})
+      if (SetFalseToReduceFileSystemUsage):
+        scipyio.savemat("Processed/%s/temperature.%05d.mat"%(outputDirID,idfile), {'temp':absTemp})
   
       # update for next time step
       vtkPreviousImage = vtkCurrent_Image 
@@ -442,11 +448,12 @@ if (options.datadir != None):
       windowToImage = vtk.vtkWindowToImageFilter() 
       windowToImage.SetInput(renWin)
       windowToImage.Update()
-      jpgWriter     = vtk.vtkJPEGWriter() 
-      jpgWriter.SetFileName( "Processed/%s/temperature.%04d.jpg" % (outputDirID,idfile))
-      #jpgWriter.SetInput(extractVOI.GetOutput())
-      jpgWriter.SetInput(windowToImage.GetOutput())
-      jpgWriter.Write()
+      if (SetFalseToReduceFileSystemUsage):
+        jpgWriter     = vtk.vtkJPEGWriter() 
+        jpgWriter.SetFileName( "Processed/%s/temperature.%04d.jpg" % (outputDirID,idfile))
+        #jpgWriter.SetInput(extractVOI.GetOutput())
+        jpgWriter.SetInput(windowToImage.GetOutput())
+        jpgWriter.Write()
 
     except KeyboardInterrupt:
       #reset reference phase
