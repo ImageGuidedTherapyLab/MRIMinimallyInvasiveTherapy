@@ -401,7 +401,7 @@ if (options.datadir != None):
       hueLut = vtk.vtkLookupTable()
       hueLut.SetNumberOfColors (256)
       #FIXME: adjust here to change color  range
-      hueLut.SetRange (-10.0, 30.0)  
+      hueLut.SetRange (-5.0, 20.0)  
       #hueLut.SetSaturationRange (0.0, 1.0)
       #hueLut.SetValueRange (0.0, 1.0)
       hueLut.SetHueRange (0.667, 0.0)
