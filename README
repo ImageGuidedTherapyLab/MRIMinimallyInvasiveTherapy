@@ -50,6 +50,29 @@ export PYTHONPATH=/usr/g/research/fuentes/cpd/pydicom-0.9.8-install/lib/python2.
 
 
 
+SQL commands
+============
+select * from tagcache where  tag like '(0020, 000e)' ;
+select * from tagcache where  tag like '(0020, 0100)' ;
+select * from tagcache where  tag like '(0019, 10a2)' ;
+select * from tagcache where  tag like '(0020, 0013)' ;
+select * from tagcache where  tag like '(0018, 1314)' ;
+
+select  tg1.Value, tg3.Value,count(tg2.Value), group_concat(tg2.Value) ,count(tg4.Value ), group_concat(tg4.Value) ,tg5.Value , tg6.Value
+from TagCache tg1 
+join TagCache tg2 on tg1.sopinstanceuid=tg2.sopinstanceuid
+join TagCache tg3 on tg1.sopinstanceuid=tg3.sopinstanceuid
+join TagCache tg4 on tg1.sopinstanceuid=tg4.sopinstanceuid
+join TagCache tg5 on tg1.sopinstanceuid=tg5.sopinstanceuid
+join TagCache tg6 on tg1.sopinstanceuid=tg6.sopinstanceuid
+where tg1.tag like '(0020, 000E)'
+and   tg2.tag    = '(0020, 0100)' -- TemporalPositionIdentifier 
+and   tg3.tag    = '(0019, 10a2)' -- data number
+and   tg4.tag    = '(0020, 0013)' -- instance number
+and   tg5.tag    = '(0018, 1314)' -- ? 
+and   tg6.tag    = '(0020, 1041)' -- slice number
+group by tg3.value
+order by cast(tg3.value as numeric);
 
 
 
