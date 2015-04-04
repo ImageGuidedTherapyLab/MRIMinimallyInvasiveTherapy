@@ -93,10 +93,6 @@ class RealTimeDicomFileRead:
             dcmimage = dicom.read_file( FullPathToFile )
             #deltat = dcmimage[0x0019,0x105a].value/dcmimage[0x0019,0x10f2].value*1.e-6
             deltat = 5.0
-            sliceIntID = int(abs(round((dcmimage.SliceLocation - dcmimage[0x0019,0x1019].value)/ dcmimage.SpacingBetweenSlices)))
-            if(sliceIntID < 0 ) :
-              print "SliceLocation", dcmimage.SliceLocation , "spacing between slices",dcmimage.SpacingBetweenSlices, "first scan location " , dcmimage[0x0019,0x1019].value
-              raise RuntimeError("slice integer %d < 0 " % sliceIntID )
             rawdataNumber = dcmimage[0x0019,0x10a2].value
             numEchoes = dcmimage[0x0019,0x107e].value
             #check if default ntime not set
@@ -112,6 +108,16 @@ class RealTimeDicomFileRead:
               #need to start over
               self.FilesReadIn.clear()
             else:
+              #sliceIntID = int(abs(round((dcmimage.SliceLocation - dcmimage[0x0019,0x1019].value)/ dcmimage.SpacingBetweenSlices)))
+              # slice location grouped by temporal position
+              #  ie slice one goes first, then slice two , three, etc
+              sliceIntID = (rawdataNumber - self.MinRawDataNumber )/ dcmimage.NumberofTemporalPositions
+
+              #if(sliceIntID < 0  or sliceIntID >= self.nslice):
+              #  print "SliceLocation", dcmimage.SliceLocation , "spacing between slices",dcmimage.SpacingBetweenSlices, "first scan location " , dcmimage[0x0019,0x1019].value, "nslice", self.nslice
+              if(sliceIntID < 0  ):
+                print "SliceLocation", dcmimage.SliceLocation , "spacing between slices",dcmimage.SpacingBetweenSlices, "first scan location " , dcmimage[0x0019,0x1019].value
+                raise RuntimeError("slice integer %d ? " % sliceIntID )
               if ( numEchoes == 1 ) : 
                  # for 1 echo assume CPD
                  numberSlice = dcmimage[0x0021,0x104f].value
@@ -121,7 +127,7 @@ class RealTimeDicomFileRead:
                  tmptimeID = dcmimage.InstanceNumber - 1 - self.NumTimeStep * numEchoes * sliceIntID * 2
                  timeIntID = tmptimeID /numEchoes / 2
                  timeIntID = rawdataNumber - self.TimeOffset
-                 timeIntID = rawdataNumber - self.MinRawDataNumber 
+                 timeIntID = rawdataNumber - sliceIntID*dcmimage.NumberofTemporalPositions  - self.MinRawDataNumber 
               else :
                  raise RuntimeError("unknown sequence ")
               #error check
