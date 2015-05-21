@@ -1,0 +1,22 @@
+
+Persistent ssh
+==============
+
+python persistentrsync.py  --socketpath=/usr/g/research/fuentes
+
+python persistentrsync.py  --socketpath=/tmp --remoteserver=10.115.24.111 --remoteuser=sdc --remotersync=/usr/g/research/fuentes/rsync-3.1.1/rsync --remotedir=/usr/g/research/fuentes/mfgreData/s2793 --localdir=RawData/s2793
+                          
+python mfgre.py --remoteserver=sdc@10.115.24.111 --datadir=/usr/g/research/fuentes/mfgreData/s2793 --remotersync=/usr/g/research/fuentes/rsync-3.1.1/rsync
+python mfgre.py --remoteserver=fuentes@10.115.8.170 --datadir=/workarea/fuentes/tmp/s2793
+
+ssh -MNf    -S /usr/g/research/fuentes/%r@%h:%p fuentes@172.30.205.52
+ssh -O check -S /usr/g/research/fuentes/fuentes@172.30.205.52:22 fuentes@172.30.205.52
+scp -o ControlPath=/usr/g/research/fuentes/fuentes@172.30.205.52:22  file fuentes@172.30.205.52:/workarea/fuentes
+ssh -O exit -S /usr/g/research/fuentes/fuentes@172.30.205.52:22 fuentes@172.30.205.52
+
+
+
+ssh -MNf     -S /tmp/%r@%h:%p             sdc@10.115.24.111
+ssh -O check -S /tmp/sdc@10.115.24.111:22 sdc@10.115.24.111
+ssh          -S /tmp/sdc@10.115.24.111:22 sdc@10.115.24.111  ls /export/home1/sdc_image_pool/images/p101/e268/s3087
+ssh -O exit  -S /tmp/sdc@10.115.24.111:22 sdc@10.115.24.111
