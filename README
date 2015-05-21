@@ -2,6 +2,13 @@ python script for generating CPD tmaps
 
 need numpy installed and python bindings for vtk
 
+rsync setup
+=========
+ tar -zxvf rsync-3.1.1.tar.gz
+ cd rsync-3.1.1
+ ./configure
+ make
+
 env setup
 =========
 
