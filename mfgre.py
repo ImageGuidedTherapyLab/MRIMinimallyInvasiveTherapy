@@ -13,17 +13,47 @@ SetFalseToReduceFileSystemUsage  = False
 
 class RealTimeDicomFileRead:
   """ Base Class for realtime image header parsing...  """
-  def __init__(self,rootDirectory,ExpectedFileSize,DefaultNstep,DefaultOffset):
+  def __init__(self,rootDirectory,ExpectedFileSize,DefaultNstep,DefaultOffset,RemoteServer,RemoteRsync):
     print " base class constructor called \n\n" 
     # dictionary key template = time echo slice type
     self.keyTemplate   = "%04d_%03d_%03d_%02d" 
-    self.dataDirectory = rootDirectory
     self.FileSize = ExpectedFileSize
     self.DicomDataDictionary = {}
     self.FilesReadIn = set()
     self.NumTimeStep = DefaultNstep
     self.MinRawDataNumber = 100000000
     self.TimeOffset = DefaultOffset
+    # assume local directory
+    self.dataDirectory = rootDirectory
+    # remote server
+    self.RemoteServer = RemoteServer 
+    self.SocketFile = "/tmp/%r@%h:%p "
+    self.CheckConnectionCMD = None
+    self.KillConnectionCMD  = None
+    self.RemoteDirectory    = None
+    self.RsyncCMD            = None
+    if (self.RemoteServer != None):
+       self.RemoteDirectory    = rootDirectory
+       self.dataDirectory      = "RawData/%s" % rootDirectory.split('/').pop()
+       os.system( "mkdir -p %s" % self.dataDirectory)
+       self.CheckConnectionCMD = "ssh -O check -S %s %s" % (self.SocketFile,self.RemoteServer) 
+       self.CreateSocketCMD    = "ssh -MNf     -S %s %s" % (self.SocketFile,self.RemoteServer) 
+       self.KillConnectionCMD  = "ssh -O exit  -S %s %s" % (self.SocketFile,self.RemoteServer) 
+       # setup rsync command
+       self.RsyncCMD = 'rsync -e "ssh -S %s"  ' %  (self.SocketFile)
+       if(RemoteRsync != None):
+         self.RsyncCMD = self.RsyncCMD + ' --rsync-path=%s ' % (RemoteRsync)
+       self.RsyncCMD = self.RsyncCMD + ' -avz %s:%s/ %s/ ' %  (self.RemoteServer,self.RemoteDirectory,self.dataDirectory)
+       # setup connection
+       if(os.system(self.CheckConnectionCMD  ) ):
+          print "\n\n   Creating Persisent Connection  %s!!!! \n\n " % self.RemoteServer
+          print self.CreateSocketCMD  
+          os.system(self.CreateSocketCMD )
+       else:
+          print "\n\n   Found Persisent Connection on %s!!!! \n\n " % self.RemoteServer
+  def __del__(self):
+       print self.KillConnectionCMD 
+       os.system(self.KillConnectionCMD)
 
   def GetHeaderInfo(self):
     """ get initial header info"""
@@ -69,7 +99,7 @@ class RealTimeDicomFileRead:
     localFileKey = self.keyTemplate % (timeInstance,echo_id,slice_id,imagetype) 
     while ( True ):
       try: 
-        # get current list of ONLY files
+        # get current directory list 
         directoryList = os.listdir(self.dataDirectory)
         # check if this has already been read in
         filename = self.DicomDataDictionary[localFileKey][0]
@@ -79,7 +109,12 @@ class RealTimeDicomFileRead:
         time.sleep(1)
       except KeyError: 
         print "waiting ... min raw %d offset %d time %04d Echo %03d slice %03d type %02d" % (self.MinRawDataNumber,self.TimeOffset  ,  timeInstance,echo_id,slice_id,imagetype) 
-        time.sleep(1)
+        # rsync remote directory
+        if(self.RemoteServer != None):
+           print self.RsyncCMD 
+           os.system( self.RsyncCMD )
+        else:
+           time.sleep(1)
         files = set( filter(lambda x:os.path.isfile("%s/%s" % (self.dataDirectory,x) ) ,directoryList) )
         ### filestmp = filter(lambda x:os.path.isfile("%s/%s" % (self.dataDirectory,x) ) ,directoryList) 
         ### files = set (filter(lambda x:int(x.split(".").pop()) < 50 ,filestmp ) )
@@ -287,6 +322,12 @@ parser = OptionParser()
 parser.add_option("--datadir", 
                   action="store", dest="datadir", default=None,
                   help="[REQUIRED] full path to data directory", metavar="DIR")
+parser.add_option("--remoteserver", 
+                  action="store", dest="remoteserver", default=None,
+                  help="[OPTIONAL] transfer files from remoteserver:datadir", metavar="IP")
+parser.add_option("--remotersync", 
+                  action="store", dest="remotersync", default=None,
+                  help="[OPTIONAL] transfer files using remoteserver:remotesrsync", metavar="PATH")
 parser.add_option("--echoID", 
                   action="store", dest="echoID", type="int", default=0,
                   help="[OPTIONAL] echo # to display for CPD", metavar="INT")
@@ -309,7 +350,8 @@ parser.add_option("-q", "--quiet",
 if (options.datadir != None):
   
   # instantiate helper class
-  fileHelper = RealTimeDicomFileRead( options.datadir, 256*256,options.nstep,options.offset  )
+  fileHelper = RealTimeDicomFileRead( options.datadir, 256*256,options.nstep ,options.offset
+                                                     ,options.remoteserver ,options.remotersync)
   outputDirID = filter(len,options.datadir.split("/")).pop()
   #os.system( "mkdir -p Processed/%s" % outputDirID )
   try:
