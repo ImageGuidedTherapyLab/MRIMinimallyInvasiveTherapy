@@ -7,6 +7,19 @@ import os
 import time
 import dicom
 import scipy.io as scipyio
+# cuda environment
+import pycuda.driver as cuda
+import pycuda.autoinit
+from pycuda.compiler import SourceModule
+mod = SourceModule("""
+    __global__ void doublify(float *a)
+    {
+      int idx = threadIdx.x + threadIdx.y*4;
+      a[idx] *= 2;
+    }
+    """)
+gpukernel = mod.get_function("doublify")
+
 
 # FIXME - hack to reduce file usage
 SetFalseToReduceFileSystemUsage  = False
@@ -411,6 +424,9 @@ if (options.datadir != None):
       # get current data set
       vtkCurrent_Image = fileHelper.GetRawDICOMData( idfile, outputDirID )
   
+      # run kernel
+      gpukernel(cuda.InOut(vtkCurrent_Image[1] ), block=(4, 4, 1))
+                            
       #  - \delta \theta = atan( conj(S^i) * S^{i+1} ) 
       #                  = atan2(Im,Re) 
       #                  = atan2( S^{i+1}_y S^i_x - S^{i+1}_x S^i_y ,
