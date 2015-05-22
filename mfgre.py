@@ -253,7 +253,7 @@ void StmcbKernel(
          const float* d_RealDataArray,
          const float* d_ImagDataArray,
                float* d_Ppm,
-               float* d_T2star,
+               float* d_R2star,
                float* d_Amplitude,
                float* d_Phase,
          float const EchoSpacing,
@@ -458,8 +458,8 @@ void StmcbKernel(
               for(iii = 0; iii< Nspecies; iii++)
                 {
                   PetscComplex  logroot = cusp::log(Lambda[iii]);
-                  d_Ppm[      idx*Nspecies+iii] = logroot.imag()/2.0/M_PI/(EchoSpacing*ImagingFreq) * 1.e-3;
-                  d_T2star[   idx*Nspecies+iii] = -EchoSpacing/logroot.real() ;
+                  d_Ppm[      idx*Nspecies+iii] = logroot.imag()/2.0/M_PI/(EchoSpacing*ImagingFreq) * 1.e3;
+                  d_R2star[   idx*Nspecies+iii] = -logroot.real()/EchoSpacing ;
 
                   d_Amplitude[idx*Nspecies+iii] = cusp::abs(amplitude[iii]) ;
                   d_Phase[    idx*Nspecies+iii] = cusp::arg(amplitude[iii]) ;
@@ -473,7 +473,7 @@ void StmcbKernel(
               for(iii = 0; iii< Nspecies; iii++)
                 {
                   d_Ppm[      idx*Nspecies+iii] = 0.0;
-                  d_T2star[   idx*Nspecies+iii] = 0.0;
+                  d_R2star[   idx*Nspecies+iii] = 0.0;
                   d_Amplitude[idx*Nspecies+iii] = 0.0;
                   d_Phase[    idx*Nspecies+iii] = 0.0;
                 }
@@ -551,7 +551,7 @@ class RealTimeDicomFileRead:
     # get number of slices
     self.nslice = headerData[0x0021,0x104f].value
     # set number of species
-    self.NSpecies    = 2
+    self.NSpecies    = 1
     # get number of echos
     self.NumberEcho  = headerData[0x0019,0x107e].value
     self.Npixel         =  headerData.Rows*headerData.Rows*self.nslice
@@ -568,13 +568,12 @@ class RealTimeDicomFileRead:
     print self.RawDimensions, self.NSpecies, self.spacing, self.origin
     
     # FIXME should be negative but phase messed up somewhere
-    self.alpha = -0.0097   
+    self.alpha = +0.0097   
     # FIXME need to read in multiple echo times to process MFGRE should 
     # FIXME still be fine for 1st echo
     echoTime = float(headerData.EchoTime)
     self.imagFreq    = float(headerData.ImagingFrequency)
-    # FIXME read from header
-    self.EchoSpacing = 1.e-3
+
     # temperature map factor
     self.tmap_factor = 1.0 / (2.0 * numpy.pi * self.imagFreq * self.alpha * echoTime * 1.e-3)
 
@@ -782,7 +781,7 @@ class RealTimeDicomFileRead:
       scipyio.savemat("Processed/%s/rawdata.%04d.mat"%(outDirectoryID,idtime), {'dimensions':RawDim,'echoTimes':echoTimes,'real':real_array,'imag':imag_array})
   
     # end GetRawDICOMData
-    return (real_array,imag_array)
+    return ((real_array,imag_array),echoTimes)
 
   # write a numpy data to disk in vtk format
   def ConvertNumpyVTKImage(self,NumpyImageData):
@@ -888,6 +887,10 @@ if (options.datadir != None):
   ren = vtk.vtkRenderer()
   renWin = vtk.vtkRenderWindow()
   renWin.AddRenderer(ren)
+
+  renRtwostar = vtk.vtkRenderer()
+  renWinRtwostar = vtk.vtkRenderWindow()
+  renWinRtwostar.AddRenderer(renRtwostar)
    
   # create a renderwindowinteractor
   iren = vtk.vtkRenderWindowInteractor()
@@ -898,12 +901,16 @@ if (options.datadir != None):
 
   # setup storage
   ppm_array      =numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
-  t2star_array   =numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
+  r2star_array   =numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
   amplitude_array=numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
   phase_array    =numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
 
   # get initial data
-  vtkPreviousImage = fileHelper.GetRawDICOMData( 0, outputDirID )
+  (vtkPreviousImage,echotimes) = fileHelper.GetRawDICOMData( 0, outputDirID )
+
+  # EchoSpacing  * ImagingFrequency  = [ms][ MHz]  = 1.e-3 * 1.e6 = 1.e3
+  # 1/(EchoSpacing  * ImagingFrequency * 1.e3) = [ppm] 
+  EchoSpacing = (echotimes[1] - echotimes[0]) # milliseconds
 
   # configure kernel
   threadsPerBlock = 256;
@@ -911,9 +918,9 @@ if (options.datadir != None):
 
   # run kernel
   gpukernel(cuda.In(vtkPreviousImage[0] ),cuda.In(vtkPreviousImage[1] ),
-            cuda.Out(ppm_array       ),cuda.Out(t2star_array   ),
+            cuda.Out(ppm_array       ),cuda.Out(r2star_array   ),
             cuda.Out(amplitude_array ),cuda.Out(phase_array    ),
-            numpy.array(fileHelper.EchoSpacing    ,dtype=numpy.float32),
+            numpy.array(           EchoSpacing    ,dtype=numpy.float32),
             numpy.array(fileHelper.imagFreq       ,dtype=numpy.float32),
             numpy.array(fileHelper.SignalThreshold,dtype=numpy.float32),
             numpy.array(fileHelper.NumberEcho     ,dtype=numpy.int32),
@@ -928,16 +935,16 @@ if (options.datadir != None):
   for idfile in range(fileHelper.NumTimeStep): 
     try:
       # get current data set
-      vtkCurrent_Image = fileHelper.GetRawDICOMData( idfile, outputDirID )
+      (vtkCurrent_Image,echotimes) = fileHelper.GetRawDICOMData( idfile, outputDirID )
 
       # save previous ppm info
       prevppm_array    = numpy.copy(ppm_array)
 
       # run kernel
       gpukernel(cuda.In(vtkCurrent_Image[0] ),cuda.In(vtkCurrent_Image[1] ),
-                cuda.Out(ppm_array       ),cuda.Out(t2star_array   ),
+                cuda.Out(ppm_array       ),cuda.Out(r2star_array   ),
                 cuda.Out(amplitude_array ),cuda.Out(phase_array    ),
-                numpy.array(fileHelper.EchoSpacing    ,dtype=numpy.float32),
+                numpy.array(           EchoSpacing    ,dtype=numpy.float32),
                 numpy.array(fileHelper.imagFreq       ,dtype=numpy.float32),
                 numpy.array(fileHelper.SignalThreshold,dtype=numpy.float32),
                 numpy.array(fileHelper.NumberEcho     ,dtype=numpy.int32),
@@ -958,6 +965,11 @@ if (options.datadir != None):
       vtkTempWriter.SetFileName( "Processed/%s/temperature.%04d.vti" % (outputDirID,idfile))
       vtkTempWriter.SetInput( vtkTempImage )
       vtkTempWriter.Update()
+      vtkR2starImage = fileHelper.ConvertNumpyVTKImage(absTemp)
+      vtkR2starWriter = vtk.vtkXMLImageDataWriter()
+      vtkR2starWriter.SetFileName( "Processed/%s/r2star.%04d.vti" % (outputDirID,idfile))
+      vtkR2starWriter.SetInput( vtkR2starImage )
+      vtkR2starWriter.Update()
   
       # write numpy to disk in matlab
       if (SetFalseToReduceFileSystemUsage):
@@ -986,12 +998,12 @@ if (options.datadir != None):
       scalarBar.SetNumberOfLabels(4)
       scalarBar.SetLookupTable(hueLut)
   
-      # image viewer
-      imageViewer.SetInput(vtkTempImage)
-      imageViewer.SetSize(512,512)
-      imageViewer.SetSlice(DisplaySlice)
-      imageViewer.SetPosition(512,0)
-      imageViewer.Render()
+      ## # image viewer
+      ## imageViewer.SetInput(vtkTempImage)
+      ## imageViewer.SetSize(512,512)
+      ## imageViewer.SetSlice(DisplaySlice)
+      ## imageViewer.SetPosition(512,0)
+      ## imageViewer.Render()
 
       # extract VOI to display
       extractVOI = vtk.vtkExtractVOI()
@@ -1019,6 +1031,65 @@ if (options.datadir != None):
       #iren.Initialize()
       renWin.SetSize(512,512)
       renWin.Render()
+      #iren.Start()
+
+      ############################
+      # Viewer for R2star
+      ############################
+      # color table
+      # http://www.vtk.org/doc/release/5.8/html/c2_vtk_e_3.html#c2_vtk_e_vtkLookupTable
+      # http://vtk.org/gitweb?p=VTK.git;a=blob;f=Examples/ImageProcessing/Python/ImageSlicing.py
+      hueLutRtwostar = vtk.vtkLookupTable()
+      hueLutRtwostar.SetNumberOfColors (256)
+      #FIXME: adjust here to change color  range
+      hueLutRtwostar.SetRange (-5.0, 200.0)  
+      #hueLutRtwostar.SetSaturationRange (0.0, 1.0)
+      #hueLutRtwostar.SetValueRange (0.0, 1.0)
+      hueLutRtwostar.SetHueRange (0.667, 0.0)
+      hueLutRtwostar.SetRampToLinear ()
+      hueLutRtwostar.Build()
+  
+      # colorbar
+      # http://www.vtk.org/doc/release/5.8/html/c2_vtk_e_3.html#c2_vtk_e_vtkLookupTable
+      scalarBarRtwostar = vtk.vtkScalarBarActor()
+      scalarBarRtwostar.SetTitle("R2*")
+      scalarBarRtwostar.SetNumberOfLabels(4)
+      scalarBarRtwostar.SetLookupTable(hueLutRtwostar)
+  
+      ## # image viewer
+      ## imageViewer.SetInput(vtkTempImage)
+      ## imageViewer.SetSize(512,512)
+      ## imageViewer.SetSlice(DisplaySlice)
+      ## imageViewer.SetPosition(512,0)
+      ## imageViewer.Render()
+
+      # extract VOI to display
+      extractVOIRtwostar = vtk.vtkExtractVOI()
+      extractVOIRtwostar.SetInput(vtkR2starImage ) 
+      extractVOIRtwostar.SetVOI([0,fileHelper.MapDimensions[0],0,fileHelper.MapDimensions[1],DisplaySlice,DisplaySlice]) 
+      extractVOIRtwostar.Update()
+      
+      # mapper
+      #mapper = vtk.vtkDataSetMapper()
+      mapperRtwostar = vtk.vtkImageMapToColors()
+      mapperRtwostar.SetInput(extractVOIRtwostar.GetOutput())
+      # set echo to display
+      mapperRtwostar.SetActiveComponent( options.speciesID )
+      mapperRtwostar.SetLookupTable(hueLutRtwostar)
+  
+      # actor
+      actorRtwostar = vtk.vtkImageActor()
+      actorRtwostar.SetInput(mapperRtwostar.GetOutput())
+       
+      # assign actor to the renderer
+      renRtwostar.AddActor(actorRtwostar)
+      renRtwostar.AddActor2D(scalarBarRtwostar)
+       
+      # uncomment to enable user interface interactor
+      #iren.Initialize()
+      renWinRtwostar.SetSize(512,512)
+      renWinRtwostar.SetPosition(512,0)
+      renWinRtwostar.Render()
       #iren.Start()
 
       # save as a movie for animation
