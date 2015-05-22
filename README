@@ -4,7 +4,7 @@ Usage mfgre.py
 ===============
 module load epd/7.3.1 
 module load cuda/4.2
-python mfgre.py --remoteserver=sdc@10.115.24.111 --remotersync=/usr/g/research/fuentes/rsync-3.1.1/rsync --datadir=/export/home1/sdc_image_pool/images/path/to/dicom
+vglrun python mfgre.py --remoteserver=sdc@10.115.24.111 --remotersync=/usr/g/research/fuentes/rsync-3.1.1/rsync --datadir=/export/home1/sdc_image_pool/images/path/to/dicom
 
 
 rsync setup
