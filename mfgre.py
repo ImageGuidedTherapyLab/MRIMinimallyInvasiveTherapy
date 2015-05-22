@@ -504,7 +504,7 @@ class RealTimeDicomFileRead:
     self.NumTimeStep = DefaultNstep
     self.MinRawDataNumber = 100000000
     self.TimeOffset = DefaultOffset
-    self.SignalThreshold = 1.e2
+    self.SignalThreshold = 5.e2
     # Debug flags
     self.Debug = 0
     # assume local directory
@@ -550,30 +550,33 @@ class RealTimeDicomFileRead:
 
     # get number of slices
     self.nslice = headerData[0x0021,0x104f].value
+    # set number of species
+    self.NSpecies    = 2
     # get number of echos
     self.NumberEcho  = headerData[0x0019,0x107e].value
-    self.dimensions  = [headerData.Rows,headerData.Rows,self.nslice,self.NumberEcho]
-    self.FullSize    =  headerData.Rows*headerData.Rows*self.nslice*self.NumberEcho 
-    self.Npixel      =  headerData.Rows*headerData.Rows*self.nslice
+    self.Npixel         =  headerData.Rows*headerData.Rows*self.nslice
+    self.FullSizeRaw    =  headerData.Rows*headerData.Rows*self.nslice*self.NumberEcho 
+    self.RawDimensions  = [headerData.Rows,headerData.Rows,self.nslice,self.NumberEcho]
+    self.FullSizeMap    =  headerData.Rows*headerData.Rows*self.nslice*self.NSpecies 
+    self.MapDimensions  = [headerData.Rows,headerData.Rows,self.nslice,self.NSpecies ]
     spacing_mm = headerData.PixelSpacing
     spacing_mm.append(headerData.SpacingBetweenSlices) 
     origin_mm  = headerData.ImagePositionPatient
     #convert to meter
     self.spacing = [ 0.001 * float(dXi) for dXi in spacing_mm  ]
     self.origin  = [ 0.001 * float(Xi) for Xi in origin_mm   ]
-    print self.dimensions, self.spacing, self.origin
+    print self.RawDimensions, self.NSpecies, self.spacing, self.origin
     
     # FIXME should be negative but phase messed up somewhere
-    alpha = +0.0097   
+    self.alpha = -0.0097   
     # FIXME need to read in multiple echo times to process MFGRE should 
     # FIXME still be fine for 1st echo
     echoTime = float(headerData.EchoTime)
     self.imagFreq    = float(headerData.ImagingFrequency)
-    self.NSpecies = 2
     # FIXME read from header
     self.EchoSpacing = 1.e-3
     # temperature map factor
-    self.tmap_factor = 1.0 / (2.0 * numpy.pi * self.imagFreq * alpha * echoTime * 1.e-3)
+    self.tmap_factor = 1.0 / (2.0 * numpy.pi * self.imagFreq * self.alpha * echoTime * 1.e-3)
 
     # should be equal and imaginary data
     expectedNtime = int(headerData.ImagesinAcquisition)/self.nslice/self.NumberEcho/2
@@ -698,9 +701,9 @@ class RealTimeDicomFileRead:
   
     #create local vars
     rootdir = self.dataDirectory
-    dim = self.dimensions
-    real_array=numpy.zeros(self.FullSize,dtype=numpy.float32)
-    imag_array=numpy.zeros(self.FullSize,dtype=numpy.float32) 
+    RawDim  = self.RawDimensions
+    real_array=numpy.zeros(self.FullSizeRaw,dtype=numpy.float32)
+    imag_array=numpy.zeros(self.FullSizeRaw,dtype=numpy.float32) 
 
     vtkAppendReal = vtk.vtkImageAppendComponents()
     vtkAppendImag = vtk.vtkImageAppendComponents()
@@ -721,11 +724,11 @@ class RealTimeDicomFileRead:
       #[2, 12, 22, 32, 42, 52, 62, 72, 82, 92]
       #>>> x[3:100:10]
       #[3, 13, 23, 33, 43, 53, 63, 73, 83, 93]
-      idEcho  = idEchoLoc % dim[3]
-      idSlice = idEchoLoc / dim[3]
-      beginIndex = dim[0]*dim[1]*dim[3]* idSlice   +idEcho
-      finalIndex = dim[0]*dim[1]*dim[3]*(idSlice+1)
-      stepIndex  = dim[3]
+      idEcho  = idEchoLoc % RawDim[3]
+      idSlice = idEchoLoc / RawDim[3]
+      beginIndex = RawDim[0]*RawDim[1]*RawDim[3]* idSlice   +idEcho
+      finalIndex = RawDim[0]*RawDim[1]*RawDim[3]*(idSlice+1)
+      stepIndex  = RawDim[3]
   
       ## realds = dicom.read_file( "%s/%s"%(rootdir,fileNameReal) )
       ## imagds = dicom.read_file( "%s/%s"%(rootdir,fileNameImag) )
@@ -776,7 +779,7 @@ class RealTimeDicomFileRead:
        localKey = self.keyTemplate % ( idtime,idecho,0,2 )
        echoTimes.append(self.DicomDataDictionary[localKey][1])
     if (SetFalseToReduceFileSystemUsage):
-      scipyio.savemat("Processed/%s/rawdata.%04d.mat"%(outDirectoryID,idtime), {'dimensions':dim,'echoTimes':echoTimes,'real':real_array,'imag':imag_array})
+      scipyio.savemat("Processed/%s/rawdata.%04d.mat"%(outDirectoryID,idtime), {'dimensions':RawDim,'echoTimes':echoTimes,'real':real_array,'imag':imag_array})
   
     # end GetRawDICOMData
     return (real_array,imag_array)
@@ -784,7 +787,7 @@ class RealTimeDicomFileRead:
   # write a numpy data to disk in vtk format
   def ConvertNumpyVTKImage(self,NumpyImageData):
     # Create initial image
-    dim = self.dimensions
+    MapDim = self.MapDimensions
     # imports raw data and stores it.
     dataImporter = vtk.vtkImageImport()
     # array is converted to a string of chars and imported.
@@ -794,13 +797,13 @@ class RealTimeDicomFileRead:
     dataImporter.SetDataScalarTypeToFloat()
     # Because the data that is imported only contains an intensity value (it isnt RGB-coded or someting similar), the importer
     # must be told this is the case.
-    dataImporter.SetNumberOfScalarComponents(dim[3])
+    dataImporter.SetNumberOfScalarComponents(MapDim[3])
     # The following two functions describe how the data is stored and the dimensions of the array it is stored in. For this
     # simple case, all axes are of length 75 and begins with the first element. For other data, this is probably not the case.
     # I have to admit however, that I honestly dont know the difference between SetDataExtent() and SetWholeExtent() although
     # VTK complains if not both are used.
-    dataImporter.SetDataExtent( 0, dim[0]-1, 0, dim[1]-1, 0, dim[2]-1)
-    dataImporter.SetWholeExtent(0, dim[0]-1, 0, dim[1]-1, 0, dim[2]-1)
+    dataImporter.SetDataExtent( 0, MapDim[0]-1, 0, MapDim[1]-1, 0, MapDim[2]-1)
+    dataImporter.SetWholeExtent(0, MapDim[0]-1, 0, MapDim[1]-1, 0, MapDim[2]-1)
     dataImporter.SetDataSpacing( self.spacing )
     dataImporter.SetDataOrigin(  self.origin )
     dataImporter.Update()
@@ -818,9 +821,9 @@ parser.add_option("--remoteserver",
 parser.add_option("--remotersync", 
                   action="store", dest="remotersync", default=None,
                   help="[OPTIONAL] transfer files using remoteserver:remotesrsync", metavar="PATH")
-parser.add_option("--echoID", 
-                  action="store", dest="echoID", type="int", default=0,
-                  help="[OPTIONAL] echo # to display for CPD", metavar="INT")
+parser.add_option("--speciesID", 
+                  action="store", dest="speciesID", type="int", default=0,
+                  help="[OPTIONAL] species # to display ", metavar="INT")
 parser.add_option("--sliceID", 
                   action="store", dest="sliceID", type="int", default=None,
                   help="[OPTIONAL] slice to display", metavar="INT")
@@ -873,7 +876,7 @@ if (options.datadir != None):
   pvd.write('</VTKFile>\n')
   
   # create initial image as 1d array
-  absTemp = numpy.zeros(fileHelper.FullSize,
+  absTemp = numpy.zeros(fileHelper.FullSizeMap,
                          dtype=numpy.float32) + options.baseline
   vtkTempImage = fileHelper.ConvertNumpyVTKImage(absTemp)
   vtkTempWriter = vtk.vtkXMLImageDataWriter()
@@ -893,23 +896,44 @@ if (options.datadir != None):
   # try image viewer for multiple windows
   imageViewer = vtk.vtkImageViewer2()
 
-  # loop and compute tmap
+  # setup storage
+  ppm_array      =numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
+  t2star_array   =numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
+  amplitude_array=numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
+  phase_array    =numpy.zeros(fileHelper.FullSizeMap,dtype=numpy.float32)
+
+  # get initial data
   vtkPreviousImage = fileHelper.GetRawDICOMData( 0, outputDirID )
+
+  # configure kernel
+  threadsPerBlock = 256;
+  blocksPerGrid = (fileHelper.Npixel  + threadsPerBlock - 1) / threadsPerBlock;
+
+  # run kernel
+  gpukernel(cuda.In(vtkPreviousImage[0] ),cuda.In(vtkPreviousImage[1] ),
+            cuda.Out(ppm_array       ),cuda.Out(t2star_array   ),
+            cuda.Out(amplitude_array ),cuda.Out(phase_array    ),
+            numpy.array(fileHelper.EchoSpacing    ,dtype=numpy.float32),
+            numpy.array(fileHelper.imagFreq       ,dtype=numpy.float32),
+            numpy.array(fileHelper.SignalThreshold,dtype=numpy.float32),
+            numpy.array(fileHelper.NumberEcho     ,dtype=numpy.int32),
+            numpy.array(fileHelper.NSpecies       ,dtype=numpy.int32),
+            numpy.array(fileHelper.Npixel         ,dtype=numpy.int32),
+            numpy.array(fileHelper.Debug          ,dtype=numpy.int32),
+            numpy.array(fileHelper.Debug          ,dtype=numpy.int32),
+            numpy.array(fileHelper.Debug          ,dtype=numpy.int32),
+                  block=(threadsPerBlock,1, 1), grid=(blocksPerGrid,1) )
+
   # do not finish until all files processed
   for idfile in range(fileHelper.NumTimeStep): 
     try:
       # get current data set
       vtkCurrent_Image = fileHelper.GetRawDICOMData( idfile, outputDirID )
-  
-      # configure kernel
-      threadsPerBlock = 256;
-      blocksPerGrid = (fileHelper.Npixel  + threadsPerBlock - 1) / threadsPerBlock;
+
+      # save previous ppm info
+      prevppm_array    = numpy.copy(ppm_array)
 
       # run kernel
-      ppm_array      =numpy.zeros(fileHelper.NSpecies*fileHelper.Npixel,dtype=numpy.float32)
-      t2star_array   =numpy.zeros(fileHelper.NSpecies*fileHelper.Npixel,dtype=numpy.float32)
-      amplitude_array=numpy.zeros(fileHelper.NSpecies*fileHelper.Npixel,dtype=numpy.float32)
-      phase_array    =numpy.zeros(fileHelper.NSpecies*fileHelper.Npixel,dtype=numpy.float32)
       gpukernel(cuda.In(vtkCurrent_Image[0] ),cuda.In(vtkCurrent_Image[1] ),
                 cuda.Out(ppm_array       ),cuda.Out(t2star_array   ),
                 cuda.Out(amplitude_array ),cuda.Out(phase_array    ),
@@ -924,15 +948,7 @@ if (options.datadir != None):
                 numpy.array(fileHelper.Debug          ,dtype=numpy.int32),
                       block=(threadsPerBlock,1, 1), grid=(blocksPerGrid,1) )
                             
-      #  - \delta \theta = atan( conj(S^i) * S^{i+1} ) 
-      #                  = atan2(Im,Re) 
-      #                  = atan2( S^{i+1}_y S^i_x - S^{i+1}_x S^i_y ,
-      #                           S^{i+1}_x S^i_x + S^{i+1}_y S^i_y ) 
-      deltaTemp = fileHelper.tmap_factor * numpy.arctan2(
-                            vtkPreviousImage[0] * vtkCurrent_Image[1] 
-                          - vtkPreviousImage[1] * vtkCurrent_Image[0] ,
-                            vtkPreviousImage[1] * vtkCurrent_Image[1] 
-                          + vtkPreviousImage[0] * vtkCurrent_Image[0]  )
+      deltaTemp = (ppm_array - prevppm_array )/fileHelper.alpha 
       absTemp  = absTemp + deltaTemp 
   
       # write numpy to disk in vtk format
@@ -980,7 +996,7 @@ if (options.datadir != None):
       # extract VOI to display
       extractVOI = vtk.vtkExtractVOI()
       extractVOI.SetInput(vtkTempImage) 
-      extractVOI.SetVOI([0,fileHelper.dimensions[0],0,fileHelper.dimensions[1],DisplaySlice,DisplaySlice]) 
+      extractVOI.SetVOI([0,fileHelper.MapDimensions[0],0,fileHelper.MapDimensions[1],DisplaySlice,DisplaySlice]) 
       extractVOI.Update()
       
       # mapper
@@ -988,7 +1004,7 @@ if (options.datadir != None):
       mapper = vtk.vtkImageMapToColors()
       mapper.SetInput(extractVOI.GetOutput())
       # set echo to display
-      mapper.SetActiveComponent( options.echoID )
+      mapper.SetActiveComponent( options.speciesID )
       mapper.SetLookupTable(hueLut)
   
       # actor
@@ -1021,7 +1037,7 @@ if (options.datadir != None):
       print "reseting base phase image at time ", idfile
       time.sleep(1)
       vtkPreviousImage = fileHelper.GetRawDICOMData( idfile, outputDirID )
-      absTemp = numpy.zeros(fileHelper.FullSize,
+      absTemp = numpy.zeros(fileHelper.FullSizeMap,
                             dtype=numpy.float32) + options.baseline
   # save gif animations
   print "saving animations... "
