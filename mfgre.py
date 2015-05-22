@@ -602,11 +602,10 @@ class RealTimeDicomFileRead:
       except KeyError: 
         print "waiting ... min raw %d offset %d time %04d Echo %03d slice %03d type %02d" % (self.MinRawDataNumber,self.TimeOffset  ,  timeInstance,echo_id,slice_id,imagetype) 
         # rsync remote directory
+        time.sleep(1)
         if(self.RemoteServer != None):
            print self.RsyncCMD 
            os.system( self.RsyncCMD )
-        else:
-           time.sleep(1)
         files = set( filter(lambda x:os.path.isfile("%s/%s" % (self.dataDirectory,x) ) ,directoryList) )
         ### filestmp = filter(lambda x:os.path.isfile("%s/%s" % (self.dataDirectory,x) ) ,directoryList) 
         ### files = set (filter(lambda x:int(x.split(".").pop()) < 50 ,filestmp ) )
