@@ -11,14 +11,12 @@ import scipy.io as scipyio
 import pycuda.driver as cuda
 import pycuda.autoinit
 from pycuda.compiler import SourceModule
-mod = SourceModule("""
-    __global__ void doublify(float *a)
-    {
-      int idx = threadIdx.x + threadIdx.y*4;
-      a[idx] *= 2;
-    }
-    """)
-gpukernel = mod.get_function("doublify")
+
+with open ("StmcbKernel.cu", "r") as cudafile:
+    codetemplate=cudafile.read().replace('\n', '')
+mod = SourceModule(codetemplate)
+gpukernel = mod.get_function("StmcbKernel")
+
 
 
 # FIXME - hack to reduce file usage
@@ -36,6 +34,8 @@ class RealTimeDicomFileRead:
     self.NumTimeStep = DefaultNstep
     self.MinRawDataNumber = 100000000
     self.TimeOffset = DefaultOffset
+    # Debug flags
+    self.Debug = 0
     # assume local directory
     self.dataDirectory = rootDirectory
     # remote server
@@ -44,7 +44,7 @@ class RealTimeDicomFileRead:
     self.CheckConnectionCMD = None
     self.KillConnectionCMD  = None
     self.RemoteDirectory    = None
-    self.RsyncCMD            = None
+    self.RsyncCMD           = None
     if (self.RemoteServer != None):
        self.RemoteDirectory    = rootDirectory
        self.dataDirectory      = "RawData/%s" % rootDirectory.split('/').pop()
@@ -65,8 +65,10 @@ class RealTimeDicomFileRead:
        else:
           print "\n\n   Found Persisent Connection on %s!!!! \n\n " % self.RemoteServer
   def __del__(self):
-       print self.KillConnectionCMD 
-       os.system(self.KillConnectionCMD)
+    if( self.KillConnectionCMD != None):
+      import os
+      print self.KillConnectionCMD 
+      os.system(self.KillConnectionCMD)
 
   def GetHeaderInfo(self):
     """ get initial header info"""
@@ -79,8 +81,9 @@ class RealTimeDicomFileRead:
     self.nslice = headerData[0x0021,0x104f].value
     # get number of echos
     self.NumberEcho  = headerData[0x0019,0x107e].value
-    self.dimensions = [headerData.Rows,headerData.Rows,self.nslice,self.NumberEcho]
-    self.FullSize   =  headerData.Rows*headerData.Rows*self.nslice*self.NumberEcho 
+    self.dimensions  = [headerData.Rows,headerData.Rows,self.nslice,self.NumberEcho]
+    self.FullSize    =  headerData.Rows*headerData.Rows*self.nslice*self.NumberEcho 
+    self.Npixel      =  headerData.Rows*headerData.Rows*self.nslice
     spacing_mm = headerData.PixelSpacing
     spacing_mm.append(headerData.SpacingBetweenSlices) 
     origin_mm  = headerData.ImagePositionPatient
@@ -94,9 +97,12 @@ class RealTimeDicomFileRead:
     # FIXME need to read in multiple echo times to process MFGRE should 
     # FIXME still be fine for 1st echo
     echoTime = float(headerData.EchoTime)
-    imagFreq = float(headerData.ImagingFrequency)
+    self.imagFreq    = float(headerData.ImagingFrequency)
+    self.NSpecies = 2
+    # FIXME read from header
+    self.EchoSpacing = 1.e-3
     # temperature map factor
-    self.tmap_factor = 1.0 / (2.0 * numpy.pi * imagFreq * alpha * echoTime * 1.e-3)
+    self.tmap_factor = 1.0 / (2.0 * numpy.pi * self.imagFreq * alpha * echoTime * 1.e-3)
 
     # should be equal and imaginary data
     expectedNtime = int(headerData.ImagesinAcquisition)/self.nslice/self.NumberEcho/2
@@ -424,8 +430,22 @@ if (options.datadir != None):
       # get current data set
       vtkCurrent_Image = fileHelper.GetRawDICOMData( idfile, outputDirID )
   
+      # configure kernel
+      threadsPerBlock = 256;
+      blocksPerGrid = (fileHelper.Npixel  + threadsPerBlock - 1) / threadsPerBlock;
+
       # run kernel
-      gpukernel(cuda.InOut(vtkCurrent_Image[1] ), block=(4, 4, 1))
+      ppm_array      =numpy.zeros(fileHelper.Npixel,dtype=numpy.float32)
+      t2star_array   =numpy.zeros(fileHelper.Npixel,dtype=numpy.float32)
+      amplitude_array=numpy.zeros(fileHelper.Npixel,dtype=numpy.float32)
+      phase_array    =numpy.zeros(fileHelper.Npixel,dtype=numpy.float32)
+      gpukernel(cuda.In(vtkCurrent_Image[0] ),cuda.In(vtkCurrent_Image[1] ),
+                cuda.Out(ppm_array       ),cuda.Out(t2star_array   ),
+                cuda.Out(amplitude_array ),cuda.Out(phase_array    ),
+                fileHelper.EchoSpacing, fileHelper.imagFreq, fileHelper.SignalThreshold,
+                fileHelper.NumberEcho , fileHelper.NSpecies, fileHelper.Npixel,
+                fileHelper.Debug , fileHelper.Debug, fileHelper.Debug,
+                      block=(threadsPerBlock, 1), grid=(blocksPerGrid,1) )
                             
       #  - \delta \theta = atan( conj(S^i) * S^{i+1} ) 
       #                  = atan2(Im,Re) 
