@@ -13,8 +13,38 @@ import pycuda.autoinit
 from pycuda.compiler import SourceModule
 
 with open ("StmcbKernel.cu", "r") as cudafile:
-    codetemplate=cudafile.read().replace('\n', '')
-mod = SourceModule(codetemplate)
+    codetemplate=cudafile.read()
+codetemplate = """
+//#include <cusp/complex.h>
+//typedef cusp::complex<PetscScalar> PetscComplex;
+//__device__ 
+//void  signalfilter(int Necho,PetscComplex *y,int Nspecies,PetscComplex beta[])
+//{
+//     for (int iii=0;iii<Necho;iii++) 
+//        for (int jjj=0;jjj<Nspecies;jjj++) 
+//           y[iii] = y[iii] - beta[jjj] *y[iii-(jjj+1)];
+//}
+__global__ 
+void StmcbKernel(
+         const float* d_RealDataArray,
+         const float* d_ImagDataArray,
+               float* d_Ppm,
+               float* d_T2star,
+               float* d_Amplitude,
+               float* d_Phase,
+         float const EchoSpacing,
+         float const ImagingFreq,
+         float const ThresholdSignal,
+         int const Necho,
+         int const Nspecies,
+         int const Npixel,
+        const int debugthread   , 
+        const int displaythread , 
+        const int debugverbose  ) 
+{
+}
+"""
+mod = SourceModule(codetemplate,include_dirs = ['/opt/apps/cuda/4.2/cuda/include/'])
 gpukernel = mod.get_function("StmcbKernel")
 
 
@@ -34,6 +64,7 @@ class RealTimeDicomFileRead:
     self.NumTimeStep = DefaultNstep
     self.MinRawDataNumber = 100000000
     self.TimeOffset = DefaultOffset
+    self.SignalThreshold = 1.e2
     # Debug flags
     self.Debug = 0
     # assume local directory
@@ -442,10 +473,16 @@ if (options.datadir != None):
       gpukernel(cuda.In(vtkCurrent_Image[0] ),cuda.In(vtkCurrent_Image[1] ),
                 cuda.Out(ppm_array       ),cuda.Out(t2star_array   ),
                 cuda.Out(amplitude_array ),cuda.Out(phase_array    ),
-                fileHelper.EchoSpacing, fileHelper.imagFreq, fileHelper.SignalThreshold,
-                fileHelper.NumberEcho , fileHelper.NSpecies, fileHelper.Npixel,
-                fileHelper.Debug , fileHelper.Debug, fileHelper.Debug,
-                      block=(threadsPerBlock, 1), grid=(blocksPerGrid,1) )
+                numpy.array(fileHelper.EchoSpacing    ,dtype=numpy.float32),
+                numpy.array(fileHelper.imagFreq       ,dtype=numpy.float32),
+                numpy.array(fileHelper.SignalThreshold,dtype=numpy.float32),
+                numpy.array(fileHelper.NumberEcho     ,dtype=numpy.int32),
+                numpy.array(fileHelper.NSpecies       ,dtype=numpy.int32),
+                numpy.array(fileHelper.Npixel         ,dtype=numpy.int32),
+                numpy.array(fileHelper.Debug          ,dtype=numpy.int32),
+                numpy.array(fileHelper.Debug          ,dtype=numpy.int32),
+                numpy.array(fileHelper.Debug          ,dtype=numpy.int32),
+                      block=(threadsPerBlock,1, 1), grid=(blocksPerGrid,1) )
                             
       #  - \delta \theta = atan( conj(S^i) * S^{i+1} ) 
       #                  = atan2(Im,Re) 
