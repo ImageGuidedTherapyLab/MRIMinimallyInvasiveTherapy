@@ -504,7 +504,7 @@ class RealTimeDicomFileRead:
     self.NumTimeStep = DefaultNstep
     self.MinRawDataNumber = 100000000
     self.TimeOffset = DefaultOffset
-    self.SignalThreshold = 5.e2
+    self.SignalThreshold = 5.e3
     # Debug flags
     self.Debug = 0
     # assume local directory
@@ -891,6 +891,10 @@ if (options.datadir != None):
   renWinRtwostar = vtk.vtkRenderWindow()
   renWinRtwostar.AddRenderer(renRtwostar)
    
+  renTone = vtk.vtkRenderer()
+  renWinTone = vtk.vtkRenderWindow()
+  renWinTone.AddRenderer(renTone)
+      
   # create a renderwindowinteractor
   iren = vtk.vtkRenderWindowInteractor()
   iren.SetRenderWindow(renWin)
@@ -930,6 +934,9 @@ if (options.datadir != None):
             numpy.array(fileHelper.Debug          ,dtype=numpy.int32),
                   block=(threadsPerBlock,1, 1), grid=(blocksPerGrid,1) )
 
+  # save reference r2star image
+  ref_r2star_array = numpy.copy(r2star_array)
+
   # do not finish until all files processed
   for idfile in range(fileHelper.NumTimeStep): 
     try:
@@ -957,6 +964,8 @@ if (options.datadir != None):
       deltaTemp = (ppm_array - prevppm_array )/fileHelper.alpha 
       absTemp  = absTemp + deltaTemp 
   
+      deltar2star = r2star_array - ref_r2star_array 
+  
       # write numpy to disk in vtk format
       print "writing timeID %d " % (idfile)
       vtkTempImage = fileHelper.ConvertNumpyVTKImage(absTemp)
@@ -964,12 +973,19 @@ if (options.datadir != None):
       vtkTempWriter.SetFileName( "Processed/%s/temperature.%04d.vti" % (outputDirID,idfile))
       vtkTempWriter.SetInput( vtkTempImage )
       vtkTempWriter.Update()
-      vtkR2starImage = fileHelper.ConvertNumpyVTKImage(absTemp)
+      vtkR2starImage = fileHelper.ConvertNumpyVTKImage(deltar2star )
       vtkR2starWriter = vtk.vtkXMLImageDataWriter()
       vtkR2starWriter.SetFileName( "Processed/%s/r2star.%04d.vti" % (outputDirID,idfile))
       vtkR2starWriter.SetInput( vtkR2starImage )
       vtkR2starWriter.Update()
   
+      # tone image
+      vtkT1Image = fileHelper.ConvertNumpyVTKImage(amplitude_array)
+      vtkT1Writer = vtk.vtkXMLImageDataWriter()
+      vtkT1Writer.SetFileName( "Processed/%s/Tone.%04d.vti" % (outputDirID,idfile))
+      vtkT1Writer.SetInput( vtkT1Image )
+      vtkT1Writer.Update()
+
       # write numpy to disk in matlab
       if (SetFalseToReduceFileSystemUsage):
         scipyio.savemat("Processed/%s/temperature.%05d.mat"%(outputDirID,idfile), {'temp':absTemp})
@@ -983,7 +999,7 @@ if (options.datadir != None):
       hueLut = vtk.vtkLookupTable()
       hueLut.SetNumberOfColors (256)
       #FIXME: adjust here to change color  range
-      hueLut.SetRange (-5.0, 20.0)  
+      hueLut.SetRange (-5.0, 30.0)  
       #hueLut.SetSaturationRange (0.0, 1.0)
       #hueLut.SetValueRange (0.0, 1.0)
       hueLut.SetHueRange (0.667, 0.0)
@@ -1041,7 +1057,7 @@ if (options.datadir != None):
       hueLutRtwostar = vtk.vtkLookupTable()
       hueLutRtwostar.SetNumberOfColors (256)
       #FIXME: adjust here to change color  range
-      hueLutRtwostar.SetRange (-5.0, 200.0)  
+      hueLutRtwostar.SetRange (-0.01, 0.1)  
       #hueLutRtwostar.SetSaturationRange (0.0, 1.0)
       #hueLutRtwostar.SetValueRange (0.0, 1.0)
       hueLutRtwostar.SetHueRange (0.667, 0.0)
@@ -1051,7 +1067,7 @@ if (options.datadir != None):
       # colorbar
       # http://www.vtk.org/doc/release/5.8/html/c2_vtk_e_3.html#c2_vtk_e_vtkLookupTable
       scalarBarRtwostar = vtk.vtkScalarBarActor()
-      scalarBarRtwostar.SetTitle("R2*")
+      scalarBarRtwostar.SetTitle("dR2*")
       scalarBarRtwostar.SetNumberOfLabels(4)
       scalarBarRtwostar.SetLookupTable(hueLutRtwostar)
   
@@ -1084,6 +1100,65 @@ if (options.datadir != None):
       renRtwostar.AddActor(actorRtwostar)
       renRtwostar.AddActor2D(scalarBarRtwostar)
        
+      ############################
+      # Viewer for T1
+      ############################
+      # color table
+      # http://www.vtk.org/doc/release/5.8/html/c2_vtk_e_3.html#c2_vtk_e_vtkLookupTable
+      # http://vtk.org/gitweb?p=VTK.git;a=blob;f=Examples/ImageProcessing/Python/ImageSlicing.py
+      hueLutTone = vtk.vtkLookupTable()
+      hueLutTone.SetNumberOfColors (256)
+      # T1 ~ 750ms
+      hueLutTone.SetRange (0.0, 1.e4)  
+      #hueLutTone.SetSaturationRange (0.0, 1.0)
+      #hueLutTone.SetValueRange (0.0, 1.0)
+      hueLutTone.SetHueRange (0.667, 0.0)
+      hueLutTone.SetRampToLinear ()
+      hueLutTone.Build()
+  
+      # colorbar
+      # http://www.vtk.org/doc/release/5.8/html/c2_vtk_e_3.html#c2_vtk_e_vtkLookupTable
+      scalarBarTone = vtk.vtkScalarBarActor()
+      scalarBarTone.SetTitle("T1")
+      scalarBarTone.SetNumberOfLabels(4)
+      scalarBarTone.SetLookupTable(hueLutTone)
+  
+      ## # image viewer
+      ## imageViewer.SetInput(vtkTempImage)
+      ## imageViewer.SetSize(512,512)
+      ## imageViewer.SetSlice(DisplaySlice)
+      ## imageViewer.SetPosition(512,0)
+      ## imageViewer.Render()
+
+      # extract VOI to display
+      extractVOITone = vtk.vtkExtractVOI()
+      extractVOITone.SetInput(vtkT1Image ) 
+      extractVOITone.SetVOI([0,fileHelper.MapDimensions[0],0,fileHelper.MapDimensions[1],DisplaySlice,DisplaySlice]) 
+      extractVOITone.Update()
+      
+      # mapper
+      #mapper = vtk.vtkDataSetMapper()
+      mapperTone = vtk.vtkImageMapToColors()
+      mapperTone.SetInput(extractVOITone.GetOutput())
+      # set echo to display
+      mapperTone.SetActiveComponent( options.speciesID )
+      mapperTone.SetLookupTable(hueLutTone)
+  
+      # actor
+      actorTone = vtk.vtkImageActor()
+      actorTone.SetInput(mapperTone.GetOutput())
+       
+      # assign actor to the renderer
+      renTone.AddActor(actorTone)
+      renTone.AddActor2D(scalarBarTone)
+       
+      # uncomment to enable user interface interactor
+      #iren.Initialize()
+      renWinTone.SetSize(512,512)
+      renWinTone.SetPosition(1024,0)
+      renWinTone.Render()
+      #iren.Start()
+
       # uncomment to enable user interface interactor
       #iren.Initialize()
       renWinRtwostar.SetSize(512,512)

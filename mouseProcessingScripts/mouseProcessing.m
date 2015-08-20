@@ -36,12 +36,12 @@ mrtiData=processedData;
 toc
 
 writeDir1=[metaDatStruct(ii).baseFolder '/pDICOM/' metaDatStruct(ii).studyName '/MRTI'];
-MGE2dcm_nii( mrtiData, 'deltaT', writeDir1);
+%MGE2dcm_nii( mrtiData, 'deltaT', writeDir1);
 
 toc
 
 writeDir2=[metaDatStruct(ii).baseFolder '/pDICOM/' metaDatStruct(ii).studyName '/geom'];
-MGE2dcm_nii( mrtiData, 'geom', writeDir2 );
+%MGE2dcm_nii( mrtiData, 'geom', writeDir2 );
 
 toc
 
@@ -59,7 +59,8 @@ writeDir=[strrep(strrep(dataFile,'segmentations','nifti'),[metaDatStruct(ii).stu
 resampleCommand='/opt/apps/ANTsR/dev//ANTsR_src/ANTsR/src/ANTS/ANTS-build//bin/WarpImageMultiTransform';
 identityTrans='/FUS4/data2/CJM/MRIMinimallyInvasiveTherapy/rtwostarTemperature/identity.txt';
 
-eval(['!' resampleCommand ' 3 ' dataFile ' ' writeDir ' ' identityTrans ' -R ' geomFile])
+buildresampleCommand = ['!' resampleCommand ' 3 ' dataFile ' ' writeDir ' ' identityTrans ' -R ' geomFile];
+print buildresampleCommand 
 toc
 end
 
